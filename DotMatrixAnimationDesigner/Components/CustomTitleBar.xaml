@@ -1,0 +1,208 @@
+﻿<UserControl x:Class="DotMatrixAnimationDesigner.Components.CustomTitleBar"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:PresentationOptions="http://schemas.microsoft.com/winfx/2006/xaml/presentation/options">
+
+    <Border DataContext="{Binding RelativeSource={RelativeSource Mode=FindAncestor, AncestorType={x:Type UserControl}}, Path=.}">
+        <Border.Style>
+            <Style TargetType="{x:Type Border}">
+                <Setter Property="VerticalAlignment" Value="Top" />
+                <Setter Property="Background" Value="{DynamicResource BackgroundColorDarkerShade}"/>
+                <Setter Property="Height" Value="32" />
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType={x:Type Window}}, Path=WindowState}" Value="Maximized">
+                        <Setter Property="Margin" Value="6" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+        </Border.Style>
+
+        <Grid>
+            <Grid.Resources>
+
+                <Style x:Key="layoutGridStyle" TargetType="{x:Type Grid}">
+                    <Setter Property="Width" Value="46" />
+                    <Setter Property="Height" Value="30"/>
+                </Style>
+                <Style x:Key="titleBarTextStyle" TargetType="{x:Type TextBlock}" BasedOn="{StaticResource MainTextBlockStyle}">
+                    <Setter Property="VerticalAlignment" Value="Center" />
+                    <Setter Property="Opacity" Value="1"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=IsActive}" Value="False">
+                            <Setter Property="Opacity" Value="0.5" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+
+                <Storyboard x:Key="animateBackgroundOpacityToOne"
+                                PresentationOptions:Freeze="True">
+                    <DoubleAnimationUsingKeyFrames Storyboard.TargetName="chromeLayoutRootBackgroundBrush"
+                                                        Storyboard.TargetProperty="Opacity">
+                        <LinearDoubleKeyFrame KeyTime="00:00:0.2" Value="1" />
+                    </DoubleAnimationUsingKeyFrames>
+                </Storyboard>
+                <Storyboard x:Key="animateBackgroundOpacityToPointTwo"
+                                PresentationOptions:Freeze="True">
+                    <DoubleAnimationUsingKeyFrames Storyboard.TargetName="chromeLayoutRootBackgroundBrush"
+                                                        Storyboard.TargetProperty="Opacity">
+                        <LinearDoubleKeyFrame KeyTime="00:00:0.2" Value="0.2" />
+                    </DoubleAnimationUsingKeyFrames>
+                </Storyboard>
+                <Storyboard x:Key="animateBackgroundOpacityToZero"
+                                PresentationOptions:Freeze="True">
+                    <DoubleAnimationUsingKeyFrames Storyboard.TargetName="chromeLayoutRootBackgroundBrush"
+                                                        Storyboard.TargetProperty="Opacity">
+                        <LinearDoubleKeyFrame KeyTime="00:00:0.2" Value="0" />
+                    </DoubleAnimationUsingKeyFrames>
+                </Storyboard>
+
+                <ControlTemplate x:Key="titleBarWindowButtonTemplate" TargetType="{x:Type Button}">
+                    <Grid   x:Name="layoutRoot" 
+                            Style="{StaticResource layoutGridStyle}">
+                        <Grid.Background>
+                            <SolidColorBrush x:Name="chromeLayoutRootBackgroundBrush"
+                                                 Color="{StaticResource RawMainTextColor}" 
+                                                 Opacity="0" />
+                        </Grid.Background>
+                        <TextBlock x:Name="buttonSymbol"
+                                       Text="{TemplateBinding Content}"
+                                       Style="{StaticResource SymbolButtonStyle}"/>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="buttonSymbol" Property="Opacity" Value="0.9"/>
+                        </Trigger>
+
+                        <EventTrigger RoutedEvent="MouseEnter">
+                            <BeginStoryboard Storyboard="{StaticResource animateBackgroundOpacityToPointTwo}"/>
+                        </EventTrigger>
+
+                        <EventTrigger RoutedEvent="MouseLeave">
+                            <BeginStoryboard Storyboard="{StaticResource animateBackgroundOpacityToZero}"/>
+                        </EventTrigger>
+
+                        <Trigger Property="IsPressed" Value="true">
+                            <Setter TargetName="layoutRoot" Property="Background" Value="{DynamicResource MainInfoColor}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+                <ControlTemplate x:Key="titleBarCloseButtonTemplate" TargetType="{x:Type Button}">
+                    <Grid x:Name="layoutRoot" 
+                              Style="{StaticResource layoutGridStyle}">
+                        <Grid.Background>
+                            <SolidColorBrush x:Name="chromeLayoutRootBackgroundBrush"
+                                                 Color="{StaticResource RawMainErrorColor}" 
+                                                 Opacity="0" />
+                        </Grid.Background>
+
+                        <TextBlock x:Name="buttonSymbol"
+                                    Text="{TemplateBinding Content}"
+                                    Style="{StaticResource SymbolButtonStyle}"/>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="buttonSymbol" Property="Opacity" Value="0.9"/>
+                        </Trigger>
+
+                        <EventTrigger RoutedEvent="MouseEnter">
+                            <BeginStoryboard Storyboard="{StaticResource animateBackgroundOpacityToOne}"/>
+                        </EventTrigger>
+
+                        <EventTrigger RoutedEvent="MouseLeave">
+                            <BeginStoryboard Storyboard="{StaticResource animateBackgroundOpacityToZero}"/>
+                        </EventTrigger>
+
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="layoutRoot" Property="Background" Value="{DynamicResource MainErrorColorDisabled}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+
+                <Style x:Key="titleBarFunctionButtonBaseStyle" TargetType="{x:Type Button}">
+                    <Setter Property="WindowChrome.IsHitTestVisibleInChrome" Value="True" />
+                    <Setter Property="OverridesDefaultStyle" Value="True" />
+                    <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                </Style>
+
+                <Style x:Key="titleBarFunctionButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource titleBarFunctionButtonBaseStyle}">
+                    <Setter Property="Template" Value="{StaticResource titleBarWindowButtonTemplate}" />
+                </Style>
+                <Style x:Key="closeWindowFunctionButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource titleBarFunctionButtonBaseStyle}">
+                    <Setter Property="Template" Value="{StaticResource titleBarCloseButtonTemplate}" />
+                </Style>
+
+                <Style x:Key="minimizeButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource titleBarFunctionButtonStyle}">
+                    <Setter Property="Content" Value="&#xE921;"/>
+                    <Setter Property="ToolTip" Value="Minimize" />
+                </Style>
+                <Style x:Key="maximizeButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource titleBarFunctionButtonStyle}">
+                    <Setter Property="Content" Value="&#xE922;"/>
+                    <Setter Property="ToolTip" Value="Maximize" />
+                </Style>
+                <Style x:Key="restoreButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource titleBarFunctionButtonStyle}">
+                    <Setter Property="Content" Value="&#xE923;"/>
+                    <Setter Property="ToolTip" Value="Restore Down" />
+                </Style>
+                <Style x:Key="closeButtonStyle" TargetType="{x:Type Button}" BasedOn="{StaticResource closeWindowFunctionButtonStyle}">
+                    <Setter Property="Content" Value="&#xE8BB;"/>
+                    <Setter Property="ToolTip" Value="Close" />
+                </Style>
+            </Grid.Resources>
+
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0"
+                       Text="{Binding Path=Title}"
+                       Style="{StaticResource titleBarTextStyle}"
+                       Margin="5,0,0,0"
+                       FontSize="10" />
+
+            <!-- Current window type -->
+            <TextBlock Grid.Column="1"
+                           Text="{Binding Path=ApplicationDescription}"
+                           HorizontalAlignment="Center"
+                           Style="{StaticResource titleBarTextStyle}"
+                           FontSize="12"
+                           FontWeight="DemiBold"/>
+
+            <!-- Buttons -->
+            <Grid Grid.Column="2"
+                      HorizontalAlignment="Right">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Minimize button -->
+                <Button Grid.Column="0"
+		                Style="{StaticResource minimizeButtonStyle}" 
+                        Click="MinimizeButtonPressed"
+                        Visibility="{Binding Path=ShowMinimizeButton, Converter={StaticResource booleanToCollapsedVisibilityConverter}}"/>
+
+                <Grid Grid.Column="1"
+                      Visibility="{Binding Path=ShowMaximizeButton, Converter={StaticResource booleanToCollapsedVisibilityConverter}}">
+
+                    <!-- Maximize button -->
+                    <Button Name="maximizeButton"
+                            Style="{StaticResource maximizeButtonStyle}"
+		                    Click="MaximizeButtonPressed"/>
+
+                    <!-- Restore button -->
+                    <Button Name="restoreButton"
+                            Style="{StaticResource restoreButtonStyle}"
+		                    Click="RestoreButtonPressed" />
+                </Grid>
+                <!-- Close button -->
+
+                <Button Grid.Column="2"
+		            Style="{StaticResource closeButtonStyle}"
+                    Click="CloseButtonPressed"/>
+            </Grid>
+        </Grid>
+    </Border>
+</UserControl>
