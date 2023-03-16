@@ -1,12 +1,11 @@
-﻿using System.Diagnostics;
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 
 namespace DotMatrixAnimationDesigner.Components
 {
     public partial class Dot : UserControl
     {
-
         #region Dependency properties
         public bool DotIsChecked
         {
@@ -23,6 +22,18 @@ namespace DotMatrixAnimationDesigner.Components
         public Dot()
         {
             InitializeComponent();
+        }
+
+
+        private void MouseDownOnDot(object sender, MouseButtonEventArgs e)
+        {
+            DotIsChecked = !DotIsChecked;
+        }
+
+        private void MouseEnterDot(object sender, MouseEventArgs e)
+        {
+            if (e.LeftButton == MouseButtonState.Pressed)
+                DotIsChecked = true;
         }
     }
 }

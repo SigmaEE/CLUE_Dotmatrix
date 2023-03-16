@@ -6,35 +6,23 @@
         <Grid.Resources>
             <SolidColorBrush x:Key="dotColor" Color="#F1FC38" />
             <SolidColorBrush x:Key="dotColorHover" Color="#F1FC38" Opacity="0.7"/>
-            <Style x:Key="dotButtonStyle" TargetType="{x:Type ToggleButton}">
-                <Setter Property="OverridesDefaultStyle" Value="True"/>
-                <Setter Property="FocusVisualStyle" Value="{x:Null}" />
-                <Setter Property="Template">
-                    <Setter.Value>
-                        <ControlTemplate TargetType="{x:Type ToggleButton}">
-                            <Border x:Name="layoutRoot"
-                                        Background="#000000">
-                                    <ContentPresenter HorizontalAlignment="Center"
-                                                  VerticalAlignment="Center"/>
-
-                            </Border>
-
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsChecked" Value="True">
-                                    <Setter TargetName="layoutRoot" Property="Background" Value="{StaticResource dotColor}"/>
-                                </Trigger>
-
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="layoutRoot" Property="Background" Value="{StaticResource dotColorHover}" />
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-            </Style>
         </Grid.Resources>
 
-        <ToggleButton Style="{StaticResource dotButtonStyle}"
-                      IsChecked="{Binding Path=DotIsChecked}" />
+        <Rectangle MouseEnter="MouseEnterDot"
+                   MouseDown="MouseDownOnDot">
+            <Rectangle.Style>
+                <Style TargetType="{x:Type Rectangle}">
+                    <Setter Property="Fill" Value="Black" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding Path=DotIsChecked}" Value="True">
+                            <Setter Property="Fill" Value="{StaticResource dotColor}" />
+                        </DataTrigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Fill" Value="{StaticResource dotColorHover}" />
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+            </Rectangle.Style>
+        </Rectangle>
     </Grid>
 </UserControl>
