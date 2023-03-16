@@ -183,12 +183,13 @@
                 </Button>
             </StackPanel>
             
-            <!-- Control button -->
+            <!-- Action buttons and export options -->
             <StackPanel Orientation="Vertical"
                         Grid.Column="1"
                         HorizontalAlignment="Right"
                         VerticalAlignment="Bottom">
 
+                <!-- Export option -->
                 <StackPanel Orientation="Horizontal"
                             HorizontalAlignment="Right"
                             Margin="0,0,4,6">
@@ -207,6 +208,7 @@
                                 FontSize="9" />
                 </StackPanel>
                 
+                <!-- Action buttons -->
                 <StackPanel Orientation="Horizontal">
                     <Button Style="{StaticResource ButtonPrimaryStyle}"
                             Content="Clear"
@@ -232,7 +234,6 @@
                         </Button.Style>
                     </Button>
 
-
                     <Button Style="{StaticResource ButtonPrimaryStyle}"
                             Content="Import"
                             Command="{Binding Path=ImportGridCommand}"
@@ -243,14 +244,37 @@
                             Content="Export frame"
                             Command="{Binding Path=ExportFrameCommand}"
                             Width="100"
-                            Margin="10,0,10,0"
-                            ToolTip="Press to export the current frame [Ctrl + E]" />
+                            Margin="10,0,10,0">
+                        <Button.ToolTip>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Press to export the current frame in " />
+                                <TextBlock Text="{Binding Path=ExportOption}" 
+                                           FontWeight="Bold"/>
+                                <TextBlock Text=" format [Ctrl + E]" />
+                            </StackPanel>
+                        </Button.ToolTip>
+                    </Button>
 
-                    <Button Style="{StaticResource ButtonPrimaryStyle}"
-                            Content="Export frames"
+                    <Button Content="Export frames"
                             Command="{Binding Path=ExportFramesCommand}"
-                            Width="100"
-                            ToolTip="Press to export all frames [Alt + E]" />
+                            Width="100">
+                        <Button.Style>
+                            <Style TargetType="{x:Type Button}" BasedOn="{StaticResource ButtonPrimaryStyle}">
+                                <Setter Property="IsEnabled" Value="True" />
+                                <Setter Property="ToolTip" Value="Press to export all frames [Alt + E]" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Path=ExportOption}" Value="{x:Static local:ExportOption.CppFunctionCalls}">
+                                        <Setter Property="IsEnabled" Value="False" />
+                                        <Setter Property="ToolTip" Value="CppFunctionCalls export format does not support multiple frames" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Path=Container.TotalNumberOfFrames}" Value="1">
+                                        <Setter Property="IsEnabled" Value="False" />
+                                        <Setter Property="ToolTip" Value="Cannot export multiple frames - there is only one" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
                 </StackPanel>
                 
             </StackPanel>

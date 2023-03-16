@@ -30,6 +30,7 @@ namespace DotMatrixAnimationDesigner
         #region Backing fields
         private int _width = 28;
         private int _height = 16;
+        private ExportOption _exportOption = ExportOption.Raw;
         #endregion
 
         public int Width
@@ -46,7 +47,11 @@ namespace DotMatrixAnimationDesigner
 
         public DotMatrixContainer Container { get; }
 
-        public ExportOption ExportOption { get; set; } = ExportOption.Raw;
+        public ExportOption ExportOption
+        {
+            get => _exportOption;
+            set => SetProperty(ref _exportOption, value);
+        }
         #endregion
 
         #region Commands
