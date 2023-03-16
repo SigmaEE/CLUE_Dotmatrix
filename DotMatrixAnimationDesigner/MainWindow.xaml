@@ -1,11 +1,11 @@
 ﻿<Window x:Class="DotMatrixAnimationDesigner.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:local="clr-namespace:DotMatrixAnimationDesigner"
-        xmlns:components="clr-namespace:DotMatrixAnimationDesigner.Components"
-        xmlns:communication="clr-namespace:DotMatrixAnimationDesigner.Communication"
-        xmlns:s="clr-namespace:System;assembly=mscorlib"
         xmlns:PresentationOptions="http://schemas.microsoft.com/winfx/2006/xaml/presentation/options"
+        xmlns:local="clr-namespace:DotMatrixAnimationDesigner"
+        xmlns:communication="clr-namespace:DotMatrixAnimationDesigner.Communication"
+        xmlns:components="clr-namespace:DotMatrixAnimationDesigner.Components"
+        xmlns:s="clr-namespace:System;assembly=mscorlib"
         Background="{StaticResource MainBackgroundColor}"
         WindowStyle="None" 
         WindowStartupLocation="CenterScreen"
@@ -34,6 +34,14 @@
                             ObjectType="{x:Type s:Enum}">
             <ObjectDataProvider.MethodParameters>
                 <x:Type TypeName="local:ExportOption" />
+            </ObjectDataProvider.MethodParameters>
+        </ObjectDataProvider>
+
+        <ObjectDataProvider x:Key="transmitOptions"
+                            MethodName="GetValues"
+                            ObjectType="{x:Type s:Enum}">
+            <ObjectDataProvider.MethodParameters>
+                <x:Type TypeName="local:TransmitOption" />
             </ObjectDataProvider.MethodParameters>
         </ObjectDataProvider>
 
@@ -83,19 +91,25 @@
                     CommandParameter="{x:Static local:ChangeDirection.Right}" />
         <KeyBinding Key="L"
                     Modifiers="Ctrl"
-                    Command="{Binding Path=ClearGridCommand}" />
+                    Command="{Binding Path=ClearCurrentFrameCommand}" />
         <KeyBinding Key="Q"
                     Modifiers="Ctrl"
                     Command="{Binding Path=DeleteFrameCommand}" />
         <KeyBinding Key="I"
                     Modifiers="Ctrl"
-                    Command="{Binding Path=ImportGridCommand}" />
+                    Command="{Binding Path=ImportFrameOrFramesCommand}" />
         <KeyBinding Key="E"
                     Modifiers="Ctrl"
                     Command="{Binding Path=ExportFrameCommand}" />
         <KeyBinding Key="E"
                     Modifiers="Alt"
                     Command="{Binding Path=ExportFramesCommand}" />
+        <KeyBinding Key="S"
+                    Modifiers="Ctrl"
+                    Command="{Binding Path=SendFrameToPinMatrixCommand}" />
+        <KeyBinding Key="S"
+                    Modifiers="Alt"
+                    Command="{Binding Path=SendFramesToPinMatrixCommand}" />
         <KeyBinding Key="N"
                     Modifiers="Ctrl"
                     Command="{Binding Path=AddNewFrameCommand}"
@@ -137,85 +151,17 @@
                 <ColumnDefinition Width="2*" />
             </Grid.ColumnDefinitions>
 
-             <!-- Set dimensions -->
-            <StackPanel Orientation="Horizontal"
-                    HorizontalAlignment="Left"
-                    Grid.Column="0"
-                    Margin="10,0,0,0">
-
-                <TextBlock Style="{StaticResource MainTextBlockStyle}"
-                        Text="Dimensions:"
-                        FontWeight="Bold"
-                        Margin="0,0,10,0"
-                        VerticalAlignment="Bottom"/>
-
-                <TextBox x:Name="widthBox"
-                            Style="{StaticResource widthAndHeightInputBox}">
-                    <TextBox.Text>
-                        <Binding Path="Width"  UpdateSourceTrigger="PropertyChanged" >
-                            <Binding.ValidationRules>
-                                <components:RangeValidationRule MinExclusive="0"
-                                                                MaxInclusive="40" />
-                            </Binding.ValidationRules>
-                        </Binding>
-                    </TextBox.Text>
-                </TextBox>
-
-
-                <TextBlock Style="{StaticResource MainTextBlockStyle}"
-                        Text="x"
-                        FontWeight="Bold" 
-                        Margin="5,0,5,0"
-                        VerticalAlignment="Bottom"/>
-
-                <TextBox x:Name="heightBox"
-                            Style="{StaticResource widthAndHeightInputBox}">
-                    <TextBox.Text>
-                        <Binding Path="Height"  UpdateSourceTrigger="PropertyChanged" >
-                            <Binding.ValidationRules>
-                                <components:RangeValidationRule MinExclusive="0"
-                                                                MaxInclusive="30" />
-                            </Binding.ValidationRules>
-                        </Binding>
-                    </TextBox.Text>
-                </TextBox>
-
-                <Button Content="Set" 
-                        Width="50"
-                        Height="25"
-                        Margin="10,0,0,0"
-                        VerticalAlignment="Bottom"
-                        Command="{Binding Path=SetDimensionsCommand}">
-                    <Button.Style>
-                        <Style TargetType="{x:Type Button}" BasedOn="{StaticResource ButtonPrimaryStyle}">
-                            <Setter Property="IsEnabled" Value="True" />
-                            <Setter Property="ToolTip" Value="Press to change the dimensions of the grid" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding Path=(Validation.HasError), ElementName=widthBox}" Value="True">
-                                    <Setter Property="IsEnabled" Value="False"/>
-                                    <Setter Property="ToolTip" Value="Cannot change the dimensions of the grid - invalid value for width" />
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding Path=(Validation.HasError), ElementName=heightBox}" Value="True">
-                                    <Setter Property="IsEnabled" Value="False"/>
-                                    <Setter Property="ToolTip" Value="Cannot change the dimensions of the grid - invalid value for heigth" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Button.Style>
-                </Button>
-            </StackPanel>
-            
-            <!-- Action buttons and export options -->
+            <!-- Connection control and dimension settings -->
             <StackPanel Orientation="Vertical"
-                        Grid.Column="1"
-                        HorizontalAlignment="Right"
-                        VerticalAlignment="Bottom">
+                   Grid.Column="0"
+                        VerticalAlignment="Bottom"
+                        Margin="10,0,0,0">
 
                 <!-- Connection information -->
                 <StackPanel x:Name="connectionInformationPanel"
                             Orientation="Horizontal"
-                            HorizontalAlignment="Right"
-                            Margin="0,0,4,5">
+                            HorizontalAlignment="Left"
+                            Margin="0,0,0,15">
 
                     <TextBlock FontSize="9"
                                Margin="0,10,10,0">
@@ -245,6 +191,11 @@
                                         <Setter Property="Text" Value="{Binding Path=Connection.ConnectionString, StringFormat={}Connected to {0}}" />
                                         <Setter Property="ToolTip" Value="Connected to target" />
                                         <Setter Property="Foreground" Value="{StaticResource MainSuccessColor}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Path=Connection.Status}" Value="{x:Static communication:ConnectionStatus.Sending}">
+                                        <Setter Property="Text" Value="Sending..." />
+                                        <Setter Property="ToolTip" Value="Sending frame data to target" />
+                                        <Setter Property="Foreground" Value="{StaticResource MainInfoColor}" />
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding Path=Connection.Status}" Value="{x:Static communication:ConnectionStatus.ConnectionFailed}">
                                         <Setter Property="Text" Value="{Binding Path=Connection.ConnectionString, StringFormat={}Connected to {0}}" />
@@ -382,7 +333,6 @@
                                     </Style>
                                 </Button.Style>
                             </Button>
-
                             <components:LoadingSpinner ControlSize="3"
                                                         Margin="15,1,10,0" 
                                                         ToolTip="Scanning...">
@@ -398,6 +348,10 @@
                                                 <Setter Property="Visibility" Value="Visible" />
                                                 <Setter Property="ToolTip" Value="Connecting..." />
                                             </DataTrigger>
+                                            <DataTrigger Binding="{Binding Path=Connection.Status}" Value="{x:Static communication:ConnectionStatus.Sending}">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                                <Setter Property="ToolTip" Value="Sending..." />
+                                            </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </components:LoadingSpinner.Style>
@@ -406,7 +360,79 @@
                         </StackPanel>
                     </Border>
                 </StackPanel>
-                
+
+                <!-- Set dimensions -->
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Left">
+
+                    <TextBlock Style="{StaticResource MainTextBlockStyle}"
+                        Text="Dimensions:"
+                        FontWeight="Bold"
+                        Margin="0,0,10,0"
+                        VerticalAlignment="Bottom"/>
+
+                    <TextBox x:Name="widthBox"
+                            Style="{StaticResource widthAndHeightInputBox}">
+                        <TextBox.Text>
+                            <Binding Path="Width"  UpdateSourceTrigger="PropertyChanged" >
+                                <Binding.ValidationRules>
+                                    <components:RangeValidationRule MinExclusive="0"
+                                                                MaxInclusive="40" />
+                                </Binding.ValidationRules>
+                            </Binding>
+                        </TextBox.Text>
+                    </TextBox>
+
+                    <TextBlock Style="{StaticResource MainTextBlockStyle}"
+                        Text="x"
+                        FontWeight="Bold"
+                        Margin="5,0,5,0"
+                        VerticalAlignment="Bottom"/>
+
+                    <TextBox x:Name="heightBox"
+                            Style="{StaticResource widthAndHeightInputBox}">
+                        <TextBox.Text>
+                            <Binding Path="Height"  UpdateSourceTrigger="PropertyChanged" >
+                                <Binding.ValidationRules>
+                                    <components:RangeValidationRule MinExclusive="0"
+                                                                MaxInclusive="30" />
+                                </Binding.ValidationRules>
+                            </Binding>
+                        </TextBox.Text>
+                    </TextBox>
+
+                    <Button Content="Set"
+                        Width="50"
+                        Height="25"
+                        Margin="10,0,0,0"
+                        VerticalAlignment="Bottom"
+                        Command="{Binding Path=SetDimensionsCommand}">
+                        <Button.Style>
+                            <Style TargetType="{x:Type Button}" BasedOn="{StaticResource ButtonPrimaryStyle}">
+                                <Setter Property="IsEnabled" Value="True" />
+                                <Setter Property="ToolTip" Value="Press to change the dimensions of the grid" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Path=(Validation.HasError), ElementName=widthBox}" Value="True">
+                                        <Setter Property="IsEnabled" Value="False"/>
+                                        <Setter Property="ToolTip" Value="Cannot change the dimensions of the grid - invalid value for width" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Path=(Validation.HasError), ElementName=heightBox}" Value="True">
+                                        <Setter Property="IsEnabled" Value="False"/>
+                                        <Setter Property="ToolTip" Value="Cannot change the dimensions of the grid - invalid value for heigth" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </StackPanel>
+            </StackPanel>
+
+            <!-- Action buttons and export options -->
+            <StackPanel Orientation="Vertical"
+                        Grid.Column="1"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom">
+
                 <!-- Export option -->
                 <StackPanel Orientation="Horizontal"
                             HorizontalAlignment="Right"
@@ -420,18 +446,37 @@
                     <ComboBox   Style="{StaticResource ComboBoxStyle}"
                                 ItemsSource="{Binding Source={StaticResource exportOptions}}"
                                 SelectedValue="{Binding Path=ExportOption, Mode=TwoWay}"
-                                Width="100"
+                                Width="120"
                                 HorizontalContentAlignment="Right"
                                 VerticalContentAlignment="Bottom"
                                 FontSize="9" />
 
+                </StackPanel>
+
+                <!-- Transmit option -->
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            Margin="0,0,4,6">
+                    <TextBlock Style="{StaticResource MainTextBlockStyle}"
+                               FontSize="9"
+                               FontStyle="Italic"
+                               Text="Transmit as..."
+                               Margin="5,3,5,0"/>
+
+                    <ComboBox   Style="{StaticResource ComboBoxStyle}"
+                                ItemsSource="{Binding Source={StaticResource transmitOptions}}"
+                                SelectedValue="{Binding Path=TransmitOption, Mode=TwoWay}"
+                                Width="120"
+                                HorizontalContentAlignment="Right"
+                                VerticalContentAlignment="Bottom"
+                                FontSize="9" />
                 </StackPanel>
                 
                 <!-- Action buttons -->
                 <StackPanel Orientation="Horizontal">
                     <Button Style="{StaticResource ButtonPrimaryStyle}"
                             Content="Clear"
-                            Command="{Binding Path=ClearGridCommand}"
+                            Command="{Binding Path=ClearCurrentFrameCommand}"
                             Width="70"
                             ToolTip="Press to clear the current frame [Ctrl + L]" />
 
@@ -455,7 +500,7 @@
 
                     <Button Style="{StaticResource ButtonPrimaryStyle}"
                             Content="Import"
-                            Command="{Binding Path=ImportGridCommand}"
+                            Command="{Binding Path=ImportFrameOrFramesCommand}"
                             Width="70"
                             ToolTip="Press to import a file [Ctrl + I]" />
 
@@ -500,21 +545,29 @@
                     </Button>
 
                     <Button Content="Send frame"
-                            Command="{Binding Path=ExportFramesCommand}"
+                            Command="{Binding Path=SendFrameToPinMatrixCommand}"
                             Width="100"
                             Margin="10,0,10,0">
                         <Button.Style>
                             <Style TargetType="{x:Type Button}" BasedOn="{StaticResource ButtonPrimaryStyle}">
-                                <Setter Property="IsEnabled" Value="True" />
-                                <Setter Property="ToolTip" Value="Press to send current frame to target pin matrix [Ctrl + S]" />
+                                <Setter Property="IsEnabled" Value="False" />
+                                <Setter Property="ToolTip" Value="Cannot send frame - not connected to a dot matrix server" />
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding Path=ExportOption}" Value="{x:Static local:ExportOption.CppFunctionCalls}">
-                                        <Setter Property="IsEnabled" Value="False" />
-                                        <Setter Property="ToolTip" Value="CppFunctionCalls export format does not support multiple frames" />
+                                    <DataTrigger Binding="{Binding Path=Connection.Status}" Value="{x:Static communication:ConnectionStatus.Connected}">
+                                        <Setter Property="IsEnabled" Value="True" />
+                                        <Setter Property="ToolTip">
+                                            <Setter.Value>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="Press to transmit the current frame in " />
+                                                    <TextBlock Text="{Binding Path=TransmitOption}"
+                                                                    FontWeight="Bold"/>
+                                                    <TextBlock Text=" format [Ctrl + S]" />
+                                                </StackPanel>
+                                            </Setter.Value>
+                                        </Setter>
                                     </DataTrigger>
-                                    <DataTrigger Binding="{Binding Path=Container.TotalNumberOfFrames}" Value="1">
-                                        <Setter Property="IsEnabled" Value="False" />
-                                        <Setter Property="ToolTip" Value="Cannot export multiple frames - there is only one" />
+                                    <DataTrigger Binding="{Binding Path=Connection.Status}" Value="{x:Static communication:ConnectionStatus.Sending}">
+                                        <Setter Property="ToolTip" Value="Sending..." />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -522,20 +575,27 @@
                     </Button>
 
                     <Button Content="Send frames"
-                            Command="{Binding Path=ExportFramesCommand}"
+                            Command="{Binding Path=SendFramesToPinMatrixCommand}"
                             Width="100">
                         <Button.Style>
                             <Style TargetType="{x:Type Button}" BasedOn="{StaticResource ButtonPrimaryStyle}">
                                 <Setter Property="IsEnabled" Value="True" />
-                                <Setter Property="ToolTip" Value="Press to send all frames to target pin matrix [Alt + S]" />
+                                <Setter Property="ToolTip" Value="" />
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding Path=ExportOption}" Value="{x:Static local:ExportOption.CppFunctionCalls}">
+                                    <DataTrigger Binding="{Binding Path=TransmitOption}" Value="{x:Static local:TransmitOption.GameOfLifeConfig}">
                                         <Setter Property="IsEnabled" Value="False" />
-                                        <Setter Property="ToolTip" Value="CppFunctionCalls export format does not support multiple frames" />
+                                        <Setter Property="ToolTip" Value="GameOfLifeConfig transmit format does not support multiple frames" />
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding Path=Container.TotalNumberOfFrames}" Value="1">
                                         <Setter Property="IsEnabled" Value="False" />
-                                        <Setter Property="ToolTip" Value="Cannot export multiple frames - there is only one" />
+                                        <Setter Property="ToolTip" Value="Cannot send multiple frames - there is only one" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Path=Connection.Status}" Value="{x:Static communication:ConnectionStatus.Connected}">
+                                        <Setter Property="IsEnabled" Value="True" />
+                                        <Setter Property="ToolTip" Value="Press to send all frames to target pin matrix [Alt + S]" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Path=Connection.Status}" Value="{x:Static communication:ConnectionStatus.Sending}">
+                                        <Setter Property="ToolTip" Value="Sending..." />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>

@@ -44,7 +44,7 @@ namespace DotMatrixAnimationDesigner
 
         public ObservableCollection<DotModel> Dots { get; } = new();
         #endregion
-        
+
         #region Private fields
         private readonly List<List<bool>> _frames = new();
         #endregion
@@ -133,7 +133,7 @@ namespace DotMatrixAnimationDesigner
         public void AddNewFrame(bool duplicateCurrent)
         {
             CopyActiveToBackingBuffer();
-            
+
             var newFrame = new List<bool>();
 
             TotalNumberOfFrames++;
@@ -173,14 +173,14 @@ namespace DotMatrixAnimationDesigner
             SetSelectedFrameToActive();
         }
 
-        public void ClearGrid()
+        public void ClearCurrentFrame()
         {
             foreach (var d in Dots)
                 d.IsChecked = false;
             CopyActiveToBackingBuffer();
         }
 
-        public void ImportGrid(int numberOfFrames, ReadOnlySpan<byte> frameData)
+        public void ImportFrames(int numberOfFrames, ReadOnlySpan<byte> frameData)
         {
             var numberOfValuesPerRow = (int)Math.Ceiling(GridWidth / 8.0);
             var valuesPerFrame = numberOfValuesPerRow * GridHeight;
@@ -248,7 +248,7 @@ namespace DotMatrixAnimationDesigner
                             f.Write(Encoding.ASCII.GetBytes(",\n"));
                     }
                     else
-                    { 
+                    {
                         f.Write(frameBytes);
                     }
                 }
@@ -295,7 +295,7 @@ namespace DotMatrixAnimationDesigner
             var numberOfBytesPerRow = (int)Math.Ceiling(GridWidth / 8.0);
             var result = new byte[numberOfBytesPerRow * GridHeight];
             var byteCounter = 0;
-            
+
             for (var i = 0; i < GridHeight; i++)
             {
                 var rowStart = i * GridWidth;
@@ -303,7 +303,7 @@ namespace DotMatrixAnimationDesigner
 
                 var bitShift = 7;
                 byte currentByte = 0;
-                
+
                 for (var j = rowStart; j < rowEnd; j++)
                 {
                     currentByte += (byte)((dots[j] ? 0x01 : 0x00) << bitShift);

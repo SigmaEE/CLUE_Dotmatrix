@@ -5,11 +5,11 @@ namespace DotMatrixAnimationDesigner.Communication
     internal readonly struct UdpListenResult
     {
         public bool Success { get; }
-        
+
         public string ErrorMessage { get; }
-        
+
         public IPAddress IPAddress { get; }
-        
+
         public int Port { get; }
 
         public static UdpListenResult FromSuccess(IPAddress address, int port)

@@ -26,6 +26,12 @@ namespace DotMatrixAnimationDesigner
         CppFunctionCalls
     }
 
+    public enum TransmitOption
+    {
+        AnimationFrames,
+        GameOfLifeConfig
+    }
+
     internal class MainWindowViewModel : ObservableObject
     {
         #region Public properties
@@ -36,6 +42,7 @@ namespace DotMatrixAnimationDesigner
         private int _udpListenPort = 5578;
         private bool _isScanningNetwork = false;
         private ExportOption _exportOption = ExportOption.Raw;
+        private TransmitOption _transmitOption = TransmitOption.AnimationFrames;
         #endregion
 
         public int Width
@@ -68,6 +75,13 @@ namespace DotMatrixAnimationDesigner
             set => SetProperty(ref _exportOption, value);
         }
 
+        public TransmitOption TransmitOption
+        {
+            get => _transmitOption;
+            set => SetProperty(ref _transmitOption, value);
+        }
+
+
         public DotMatrixContainer Container { get; }
 
         public UdpBroadcastListener UdpListener { get; }
@@ -77,36 +91,37 @@ namespace DotMatrixAnimationDesigner
 
         #region Commands
         private ICommand? _setDimensionsCommand;
-        private ICommand? _clearGridCommand;
+        private ICommand? _clearCurrentFrameCommand;
         private ICommand? _exportFrameCommand;
         private ICommand? _exportFramesCommand;
-        private ICommand? _importGridCommand;
+        private ICommand? _importFrameOrFramesCommand;
         private ICommand? _moveImageCommand;
         private ICommand? _addNewFrameCommand;
         private ICommand? _changeFrameCommand;
         private ICommand? _deleteFrameCommand;
         private ICommand? _scanNetworkCommand;
         private ICommand? _connectOrDisconnectToPinMatrixCommand;
+        private ICommand? _sendFrameToPinMatrixCommand;
         private ICommand? _sendFramesToPinMatrixCommand;
 
         public ICommand SetDimensionsCommand
-        { 
+        {
             get
             {
                 _setDimensionsCommand ??= new RelayCommand(() => Container.SetDimensions(Width, Height));
                 return _setDimensionsCommand;
             }
         }
-        
-        public ICommand ClearGridCommand
+
+        public ICommand ClearCurrentFrameCommand
         {
             get
             {
-                _clearGridCommand ??= new RelayCommand(Container.ClearGrid);
-                return _clearGridCommand;
+                _clearCurrentFrameCommand ??= new RelayCommand(Container.ClearCurrentFrame);
+                return _clearCurrentFrameCommand;
             }
         }
-      
+
         public ICommand ExportFrameCommand
         {
             get
@@ -124,16 +139,16 @@ namespace DotMatrixAnimationDesigner
                 return _exportFramesCommand;
             }
         }
-        
-        public ICommand ImportGridCommand
+
+        public ICommand ImportFrameOrFramesCommand
         {
             get
             {
-                _importGridCommand ??= new RelayCommand(ImportGrid);
-                return _importGridCommand;
+                _importFrameOrFramesCommand ??= new RelayCommand(ImportFrameOrFrames);
+                return _importFrameOrFramesCommand;
             }
         }
-        
+
         public ICommand MoveImageCommand
         {
             get
@@ -142,7 +157,7 @@ namespace DotMatrixAnimationDesigner
                 return _moveImageCommand;
             }
         }
-        
+
         public ICommand AddNewFrameCommand
         {
             get
@@ -151,7 +166,7 @@ namespace DotMatrixAnimationDesigner
                 return _addNewFrameCommand;
             }
         }
-        
+
         public ICommand ChangeFrameCommand
         {
             get
@@ -160,7 +175,7 @@ namespace DotMatrixAnimationDesigner
                 return _changeFrameCommand;
             }
         }
-        
+
         public ICommand DeleteFrameCommand
         {
             get
@@ -178,7 +193,7 @@ namespace DotMatrixAnimationDesigner
                 return _scanNetworkCommand;
             }
         }
-        
+
         public ICommand ConnectOrDisconnectToPinMatrixCommand
         {
             get
@@ -188,11 +203,20 @@ namespace DotMatrixAnimationDesigner
             }
         }
 
+        public ICommand SendFrameToPinMatrixCommand
+        {
+            get
+            {
+                _sendFrameToPinMatrixCommand ??= new RelayCommand(() => TransmitFrames(true));
+                return _sendFrameToPinMatrixCommand;
+            }
+        }
+
         public ICommand SendFramesToPinMatrixCommand
         {
             get
             {
-                _sendFramesToPinMatrixCommand ??= new RelayCommand(Container.DeleteFrame);
+                _sendFramesToPinMatrixCommand ??= new RelayCommand(() => TransmitFrames(false));
                 return _sendFramesToPinMatrixCommand;
             }
         }
@@ -230,7 +254,7 @@ namespace DotMatrixAnimationDesigner
         }
 
         #region Private methods
-        private void ImportGrid()
+        private void ImportFrameOrFrames()
         {
             if (_frameImportPathDialog.ShowDialog() != true)
                 return;
@@ -282,15 +306,20 @@ namespace DotMatrixAnimationDesigner
 
         private void ConnectOrDisconnect()
         {
-            Task.Run(() => 
+            Task.Run(() =>
             {
                 if (Connection.Status != ConnectionStatus.Connected)
                     Connection.TryConnect();
                 else
                     Connection.Disconnect();
             });
+        }
 
-    }
+        private void TransmitFrames(bool onlyIncludeCurrent)
+        {
+            if (Connection.Status != ConnectionStatus.Connected)
+                return;
+        }
         #endregion
     }
 }

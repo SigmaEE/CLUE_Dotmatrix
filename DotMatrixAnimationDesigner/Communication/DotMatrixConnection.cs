@@ -13,6 +13,7 @@ namespace DotMatrixAnimationDesigner.Communication
         NotConnected,
         Connecting,
         Connected,
+        Sending,
         ConnectionFailed
     }
 
@@ -26,7 +27,7 @@ namespace DotMatrixAnimationDesigner.Communication
         private string _lastConnectionErrorMessage = string.Empty;
         #endregion
 
-        public ConnectionStatus Status 
+        public ConnectionStatus Status
         {
             get => _status;
             set => SetProperty(ref _status, value);
@@ -79,7 +80,7 @@ namespace DotMatrixAnimationDesigner.Communication
 
             try
             {
-                var didReturnNormally =  _client.ConnectAsync(_ipAddress, _port).Wait(3000);
+                var didReturnNormally = _client.ConnectAsync(_ipAddress, _port).Wait(3000);
                 if (_client.Connected)
                     _client.Client.LingerState = new LingerOption(false, 0);
                 else
@@ -103,7 +104,7 @@ namespace DotMatrixAnimationDesigner.Communication
             {
                 _client.Dispose();
                 _client = null;
-            }            
+            }
         }
 
         public void Disconnect()
@@ -127,7 +128,7 @@ namespace DotMatrixAnimationDesigner.Communication
                 Status = ConnectionStatus.NotConnected;
             }
         }
-        
+
         #region Private fields
         private void IsConnectionStillAlive()
         {

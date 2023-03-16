@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Net;
 using System.Net.Sockets;
-using System.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace DotMatrixAnimationDesigner.Communication
@@ -33,7 +32,7 @@ namespace DotMatrixAnimationDesigner.Communication
         #region Private fields
         private const int ExpectedNumberOfBytesInUdpPacket = 6;
         #endregion
-        
+
         public void StartUdpBroadcastListen(int updPort)
         {
             using var client = new UdpClient(updPort);

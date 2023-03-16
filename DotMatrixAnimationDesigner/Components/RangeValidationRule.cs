@@ -12,7 +12,7 @@ namespace DotMatrixAnimationDesigner.Components
         {
             if (!int.TryParse(value as string, NumberStyles.Integer, cultureInfo, out var v))
                 return new ValidationResult(false, $"'{value}' is not a valid integer");
-            
+
             if ((v <= MinExclusive) || (v > MaxInclusive))
                 return new ValidationResult(false, $"The value must be in the range: ({MinExclusive}-{MaxInclusive}]");
             return ValidationResult.ValidResult;
