@@ -13,12 +13,18 @@
     <Compile Update="Components\Dot.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Update="Components\LoadingSpinner.xaml.cs">
+      <SubType>Code</SubType>
+    </Compile>
   </ItemGroup>
   <ItemGroup>
     <Page Update="Components\CustomTitleBar.xaml">
       <SubType>Designer</SubType>
     </Page>
     <Page Update="Components\Dot.xaml">
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Update="Components\LoadingSpinner.xaml">
       <SubType>Designer</SubType>
     </Page>
     <Page Update="MainWindow.xaml">

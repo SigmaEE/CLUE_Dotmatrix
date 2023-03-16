@@ -1,9 +1,11 @@
 ﻿using System;
 using System.IO;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using DotMatrixAnimationDesigner.Communication;
 using Ookii.Dialogs.Wpf;
 
 namespace DotMatrixAnimationDesigner
@@ -30,6 +32,8 @@ namespace DotMatrixAnimationDesigner
         #region Backing fields
         private int _width = 28;
         private int _height = 16;
+        private int _udpListenPort = 5578;
+        private bool _isScanningNetwork = false;
         private ExportOption _exportOption = ExportOption.Raw;
         #endregion
 
@@ -45,13 +49,29 @@ namespace DotMatrixAnimationDesigner
             set => SetProperty(ref _height, value);
         }
 
-        public DotMatrixContainer Container { get; }
+        public int UdpListenPort
+        {
+            get => _udpListenPort;
+            set => SetProperty(ref _udpListenPort, value);
+        }
+
+        public bool IsScanningNetwork
+        {
+            get => _isScanningNetwork;
+            set => SetProperty(ref _isScanningNetwork, value);
+        }
 
         public ExportOption ExportOption
         {
             get => _exportOption;
             set => SetProperty(ref _exportOption, value);
         }
+
+        public DotMatrixContainer Container { get; }
+
+        public UdpBroadcastListener UdpListener { get; }
+
+        public DotMatrixConnection Connection { get; }
         #endregion
 
         #region Commands
@@ -64,6 +84,9 @@ namespace DotMatrixAnimationDesigner
         private ICommand? _addNewFrameCommand;
         private ICommand? _changeFrameCommand;
         private ICommand? _deleteFrameCommand;
+        private ICommand? _scanNetworkCommand;
+        private ICommand? _connectOrDisconnectToPinMatrixCommand;
+        private ICommand? _sendFramesToPinMatrixCommand;
 
         public ICommand SetDimensionsCommand
         { 
@@ -145,6 +168,33 @@ namespace DotMatrixAnimationDesigner
                 return _deleteFrameCommand;
             }
         }
+
+        public ICommand ScanNetworkCommand
+        {
+            get
+            {
+                _scanNetworkCommand ??= new RelayCommand(ScanNetwork);
+                return _scanNetworkCommand;
+            }
+        }
+        
+        public ICommand ConnectOrDisconnectToPinMatrixCommand
+        {
+            get
+            {
+                _connectOrDisconnectToPinMatrixCommand ??= new RelayCommand(ConnectOrDisconnect);
+                return _connectOrDisconnectToPinMatrixCommand;
+            }
+        }
+
+        public ICommand SendFramesToPinMatrixCommand
+        {
+            get
+            {
+                _sendFramesToPinMatrixCommand ??= new RelayCommand(Container.DeleteFrame);
+                return _sendFramesToPinMatrixCommand;
+            }
+        }
         #endregion
 
         private readonly VistaSaveFileDialog _exportDialog = new()
@@ -154,7 +204,7 @@ namespace DotMatrixAnimationDesigner
 
         private readonly VistaOpenFileDialog _frameImportPathDialog = new()
         {
-            Title = "IMport frame",
+            Title = "Import frame data",
             Filter = "Binary file (*.dat)|*.dat",
             Multiselect = false
         };
@@ -162,6 +212,20 @@ namespace DotMatrixAnimationDesigner
         public MainWindowViewModel()
         {
             Container = new(Width, Height);
+            Connection = new();
+            UdpListener = new();
+
+            UdpListener.UdpListenDone += UdpListenDone;
+        }
+
+        private void UdpListenDone(object? sender, UdpListenResult e)
+        {
+            IsScanningNetwork = false;
+            if (e.Success)
+            {
+                Connection.SetConnectionInformation(e.IPAddress, e.Port);
+                Connection.Status = ConnectionStatus.NotConnected;
+            }
         }
 
         #region Private methods
@@ -201,6 +265,24 @@ namespace DotMatrixAnimationDesigner
 
             Container.WriteCurrentContentToFile(_exportDialog.FileName, !onlyExportCurrent, ExportOption);
         }
+
+        private void ScanNetwork()
+        {
+            IsScanningNetwork = true;
+            Task.Run(() => UdpListener.StartUdpBroadcastListen(UdpListenPort));
+        }
+
+        private void ConnectOrDisconnect()
+        {
+            Task.Run(() => 
+            {
+                if (Connection.Status != ConnectionStatus.Connected)
+                    Connection.TryConnect();
+                else
+                    Connection.Disconnect();
+            });
+
+    }
         #endregion
     }
 }

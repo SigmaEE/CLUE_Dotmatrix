@@ -3,15 +3,16 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:DotMatrixAnimationDesigner"
         xmlns:components="clr-namespace:DotMatrixAnimationDesigner.Components"
+        xmlns:communication="clr-namespace:DotMatrixAnimationDesigner.Communication"
         xmlns:s="clr-namespace:System;assembly=mscorlib"
-        Background="{DynamicResource MainBackgroundColor}"
+        xmlns:PresentationOptions="http://schemas.microsoft.com/winfx/2006/xaml/presentation/options"
+        Background="{StaticResource MainBackgroundColor}"
         WindowStyle="None" 
         WindowStartupLocation="CenterScreen"
         Title="DotMatrixAnimationDesigner"
-        Height="600"
-        Width="800">
-
-
+        Height="720"
+        Width="1080">
+    
     <Window.Resources>
         <Style x:Key="widthAndHeightInputBox" TargetType="{x:Type TextBox}" BasedOn="{StaticResource MainTextBoxStyleBase}">
             <Setter Property="Width" Value="50" />
@@ -35,6 +36,27 @@
                 <x:Type TypeName="local:ExportOption" />
             </ObjectDataProvider.MethodParameters>
         </ObjectDataProvider>
+
+        <Storyboard x:Key="animateOpacityToOne"
+                            PresentationOptions:Freeze="True">
+            <DoubleAnimationUsingKeyFrames Storyboard.TargetProperty="Opacity">
+                <LinearDoubleKeyFrame KeyTime="00:00:0.2" Value="1" />
+            </DoubleAnimationUsingKeyFrames>
+        </Storyboard>
+        
+        <Storyboard x:Key="animateOpacityToPointSeven"
+                            PresentationOptions:Freeze="True">
+            <DoubleAnimationUsingKeyFrames Storyboard.TargetProperty="Opacity">
+                <LinearDoubleKeyFrame KeyTime="00:00:0.2" Value="0.7" />
+            </DoubleAnimationUsingKeyFrames>
+        </Storyboard>
+        
+        <Storyboard x:Key="animateOpacityToZero"
+                            PresentationOptions:Freeze="True">
+            <DoubleAnimationUsingKeyFrames Storyboard.TargetProperty="Opacity">
+                <LinearDoubleKeyFrame KeyTime="00:00:0.2" Value="0" />
+            </DoubleAnimationUsingKeyFrames>
+        </Storyboard>
         
     </Window.Resources>
 
@@ -96,7 +118,7 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="36" />
-            <RowDefinition Height="70" />
+            <RowDefinition Height="90" />
             <RowDefinition Height="*" />
             <RowDefinition Height="50" />
         </Grid.RowDefinitions>
@@ -109,7 +131,7 @@
 
         <!-- Top row -->
         <Grid Grid.Row="1" 
-              Margin="10">
+              Margin="10,0,10,10">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="2*" />
@@ -189,6 +211,202 @@
                         HorizontalAlignment="Right"
                         VerticalAlignment="Bottom">
 
+                <!-- Connection information -->
+                <StackPanel x:Name="connectionInformationPanel"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            Margin="0,0,4,5">
+
+                    <TextBlock FontSize="9"
+                               Margin="0,10,10,0">
+                        <TextBlock.Style>
+                            <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource MainTextBlockStyle}">
+                                <Setter Property="Text" Value="Pin matrix target unknown" />
+                                <Setter Property="ToolTip" Value="Scan network to locate dot matrix server" />
+                                <Setter Property="Foreground" Value="{StaticResource MainErrorColor}" />
+                                <Setter Property="FontWeight" Value="Bold" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Path=IsScanningNetwork}" Value="True">
+                                        <Setter Property="Text" Value="Scanning network..." />
+                                        <Setter Property="ToolTip" Value="Listener for UDP broadcasts on local network..." />
+                                        <Setter Property="Foreground" Value="{StaticResource MainInfoColor}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Path=Connection.Status}" Value="{x:Static communication:ConnectionStatus.NotConnected}">
+                                        <Setter Property="Text" Value="{Binding Path=Connection.ConnectionString, StringFormat={}Not connected to {0}}" />
+                                        <Setter Property="Foreground" Value="{StaticResource MainTextColor}" />
+                                        <Setter Property="ToolTip" Value="Connect to the local dot matrix server to start sending frames" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Path=Connection.Status}" Value="{x:Static communication:ConnectionStatus.Connecting}">
+                                        <Setter Property="Text" Value="Connecting..." />
+                                        <Setter Property="ToolTip" Value="Connecting to local dot matrix server..." />
+                                        <Setter Property="Foreground" Value="{StaticResource MainInfoColor}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Path=Connection.Status}" Value="{x:Static communication:ConnectionStatus.Connected}">
+                                        <Setter Property="Text" Value="{Binding Path=Connection.ConnectionString, StringFormat={}Connected to {0}}" />
+                                        <Setter Property="ToolTip" Value="Connected to target" />
+                                        <Setter Property="Foreground" Value="{StaticResource MainSuccessColor}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Path=Connection.Status}" Value="{x:Static communication:ConnectionStatus.ConnectionFailed}">
+                                        <Setter Property="Text" Value="{Binding Path=Connection.ConnectionString, StringFormat={}Connected to {0}}" />
+                                        <Setter Property="ToolTip" Value="{Binding Path=Connection.LastConnectionErrorMessage}" />
+                                        <Setter Property="Foreground" Value="{StaticResource MainErrorColor}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Path=UdpListener.LastScanSuccessful}" Value="False">
+                                        <Setter Property="Text" Value="Last network scan failed" />
+                                        <Setter Property="ToolTip" Value="{Binding Path=UdpListener.LastErrorMessage}" />
+                                        <Setter Property="Foreground" Value="{StaticResource MainWarningColor}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <Border Background="{StaticResource BackgroundColorDarkerShade}"
+                            CornerRadius="3">
+
+                        <Border.Style>
+                            <Style TargetType="{x:Type Border}">
+                                <Setter Property="Opacity" Value="0" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ElementName=connectionInformationPanel, Path=IsMouseOver}"  Value="True">
+                                        <DataTrigger.EnterActions>
+                                            <BeginStoryboard Storyboard="{StaticResource animateOpacityToOne}" />
+                                        </DataTrigger.EnterActions>
+                                        <DataTrigger.ExitActions>
+                                            <BeginStoryboard Storyboard="{StaticResource animateOpacityToZero}" />
+                                        </DataTrigger.ExitActions>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock FontSize="9"
+                                       Text="UDP listen port:"
+                                       FontStyle="Italic"
+                                       Margin="5,5,5,0">
+                                <TextBlock.Style>
+                                    <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource MainTextBlockStyle}">
+                                        <Setter Property="Opacity" Value="0" />
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding ElementName=connectionInformationPanel, Path=IsMouseOver}" Value="True" />
+                                                    <Condition Binding="{Binding Path=Connection.Status}" Value="{x:Static communication:ConnectionStatus.ConnectionParametersUnknown}" />
+                                                </MultiDataTrigger.Conditions>
+                                                <MultiDataTrigger.EnterActions>
+                                                    <BeginStoryboard Storyboard="{StaticResource animateOpacityToPointSeven}" />
+                                                </MultiDataTrigger.EnterActions>
+                                                <MultiDataTrigger.ExitActions>
+                                                    <BeginStoryboard Storyboard="{StaticResource animateOpacityToZero}" />
+                                                </MultiDataTrigger.ExitActions>
+                                            </MultiDataTrigger>
+                                            <DataTrigger Binding="{Binding Path=Connection.Status}" Value="{x:Static communication:ConnectionStatus.ConnectionParametersUnknown}">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <TextBox>
+                                <TextBox.Text>
+                                    <Binding Path="UdpListenPort"  UpdateSourceTrigger="PropertyChanged" >
+                                        <Binding.ValidationRules>
+                                            <components:RangeValidationRule MinExclusive="0"
+                                                                        MaxInclusive="65535" />
+                                        </Binding.ValidationRules>
+                                    </Binding>
+                                </TextBox.Text>
+                                <TextBox.Style>
+                                    <Style TargetType="{x:Type TextBox}" BasedOn="{StaticResource widthAndHeightInputBox}">
+                                        <Setter Property="Opacity" Value="0" />
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Setter Property="Height" Value="15" />
+                                        <Setter Property="Margin" Value="0,0,0,3" />
+                                        <Style.Triggers>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding ElementName=connectionInformationPanel, Path=IsMouseOver}" Value="True" />
+                                                    <Condition Binding="{Binding Path=Connection.Status}" Value="{x:Static communication:ConnectionStatus.ConnectionParametersUnknown}" />
+                                                </MultiDataTrigger.Conditions>
+                                                <MultiDataTrigger.EnterActions>
+                                                    <BeginStoryboard Storyboard="{StaticResource animateOpacityToPointSeven}" />
+                                                </MultiDataTrigger.EnterActions>
+                                                <MultiDataTrigger.ExitActions>
+                                                    <BeginStoryboard Storyboard="{StaticResource animateOpacityToZero}" />
+                                                </MultiDataTrigger.ExitActions>
+                                            </MultiDataTrigger>
+                                            <DataTrigger Binding="{Binding Path=Connection.Status}" Value="{x:Static communication:ConnectionStatus.ConnectionParametersUnknown}">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBox.Style>
+                            </TextBox>
+                            <Button>
+                                <Button.Style>
+                                    <Style TargetType="{x:Type Button}" BasedOn="{StaticResource ButtonSmallStyle}">
+                                        <Setter Property="Opacity" Value="0" />
+                                        <Setter Property="Content" Value="Scan" />
+                                        <Setter Property="Margin" Value="5,0,5,0" />
+                                        <Setter Property="ToolTip" Value="Click to scan network for DotMatrix server" />
+                                        <Setter Property="Height" Value="20" />
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Setter Property="Command" Value="{Binding Path=ScanNetworkCommand}" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ElementName=connectionInformationPanel, Path=IsMouseOver}"  Value="True">
+                                                <DataTrigger.EnterActions>
+                                                    <BeginStoryboard Storyboard="{StaticResource animateOpacityToPointSeven}" />
+                                                </DataTrigger.EnterActions>
+                                                <DataTrigger.ExitActions>
+                                                    <BeginStoryboard Storyboard="{StaticResource animateOpacityToZero}" />
+                                                </DataTrigger.ExitActions>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Path=IsScanningNetwork}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Path=Connection.Status}" Value="{x:Static communication:ConnectionStatus.Connecting}">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Path=Connection.Status}" Value="{x:Static communication:ConnectionStatus.NotConnected}">
+                                                <Setter Property="Content" Value="Connect" />
+                                                <Setter Property="ToolTip" Value="Click to connect to dot matrix server" />
+                                                <Setter Property="Command" Value="{Binding Path=ConnectOrDisconnectToPinMatrixCommand}" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Path=Connection.Status}" Value="{x:Static communication:ConnectionStatus.Connected}">
+                                                <Setter Property="Content" Value="Disconnect" />
+                                                <Setter Property="ToolTip" Value="Click to disconnect from dot matrix server" />
+                                                <Setter Property="Command" Value="{Binding Path=ConnectOrDisconnectToPinMatrixCommand}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+
+                            <components:LoadingSpinner ControlSize="3"
+                                                        Margin="15,1,10,0" 
+                                                        ToolTip="Scanning...">
+                                <components:LoadingSpinner.Style>
+                                    <Style TargetType="{x:Type components:LoadingSpinner}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Setter Property="ToolTip" Value="Scanning..." />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Path=IsScanningNetwork}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding Path=Connection.Status}" Value="{x:Static communication:ConnectionStatus.Connecting}">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                                <Setter Property="ToolTip" Value="Connecting..." />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </components:LoadingSpinner.Style>
+                            </components:LoadingSpinner>
+
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+                
                 <!-- Export option -->
                 <StackPanel Orientation="Horizontal"
                             HorizontalAlignment="Right"
@@ -206,6 +424,7 @@
                                 HorizontalContentAlignment="Right"
                                 VerticalContentAlignment="Bottom"
                                 FontSize="9" />
+
                 </StackPanel>
                 
                 <!-- Action buttons -->
@@ -262,6 +481,49 @@
                             <Style TargetType="{x:Type Button}" BasedOn="{StaticResource ButtonPrimaryStyle}">
                                 <Setter Property="IsEnabled" Value="True" />
                                 <Setter Property="ToolTip" Value="Press to export all frames [Alt + E]" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Path=ExportOption}" Value="{x:Static local:ExportOption.CppFunctionCalls}">
+                                        <Setter Property="IsEnabled" Value="False" />
+                                        <Setter Property="ToolTip" Value="CppFunctionCalls export format does not support multiple frames" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Path=Container.TotalNumberOfFrames}" Value="1">
+                                        <Setter Property="IsEnabled" Value="False" />
+                                        <Setter Property="ToolTip" Value="Cannot export multiple frames - there is only one" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+
+                    <Button Content="Send frame"
+                            Command="{Binding Path=ExportFramesCommand}"
+                            Width="100"
+                            Margin="10,0,10,0">
+                        <Button.Style>
+                            <Style TargetType="{x:Type Button}" BasedOn="{StaticResource ButtonPrimaryStyle}">
+                                <Setter Property="IsEnabled" Value="True" />
+                                <Setter Property="ToolTip" Value="Press to send current frame to target pin matrix [Ctrl + S]" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Path=ExportOption}" Value="{x:Static local:ExportOption.CppFunctionCalls}">
+                                        <Setter Property="IsEnabled" Value="False" />
+                                        <Setter Property="ToolTip" Value="CppFunctionCalls export format does not support multiple frames" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Path=Container.TotalNumberOfFrames}" Value="1">
+                                        <Setter Property="IsEnabled" Value="False" />
+                                        <Setter Property="ToolTip" Value="Cannot export multiple frames - there is only one" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+
+                    <Button Content="Send frames"
+                            Command="{Binding Path=ExportFramesCommand}"
+                            Width="100">
+                        <Button.Style>
+                            <Style TargetType="{x:Type Button}" BasedOn="{StaticResource ButtonPrimaryStyle}">
+                                <Setter Property="IsEnabled" Value="True" />
+                                <Setter Property="ToolTip" Value="Press to send all frames to target pin matrix [Alt + S]" />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding Path=ExportOption}" Value="{x:Static local:ExportOption.CppFunctionCalls}">
                                         <Setter Property="IsEnabled" Value="False" />
