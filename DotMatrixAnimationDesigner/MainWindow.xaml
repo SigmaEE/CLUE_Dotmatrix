@@ -486,6 +486,10 @@
                                         <Setter Property="IsEnabled" Value="False" />
                                         <Setter Property="ToolTip" Value="CppFunctionCalls export format does not support multiple frames" />
                                     </DataTrigger>
+                                    <DataTrigger Binding="{Binding Path=ExportOption}" Value="{x:Static local:ExportOption.Coordinates}">
+                                        <Setter Property="IsEnabled" Value="False" />
+                                        <Setter Property="ToolTip" Value="Coordinates export format does not support multiple frames" />
+                                    </DataTrigger>
                                     <DataTrigger Binding="{Binding Path=Container.TotalNumberOfFrames}" Value="1">
                                         <Setter Property="IsEnabled" Value="False" />
                                         <Setter Property="ToolTip" Value="Cannot export multiple frames - there is only one" />

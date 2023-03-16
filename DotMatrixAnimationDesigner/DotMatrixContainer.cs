@@ -220,9 +220,9 @@ namespace DotMatrixAnimationDesigner
             CopyActiveToBackingBuffer();
             var f = File.Create(filePath);
 
-            if (exportOption == ExportOption.CppFunctionCalls)
-            { 
-                WriteFrameAsAsRawFunctionCalls(f);
+            if (exportOption == ExportOption.CppFunctionCalls || exportOption == ExportOption.Coordinates)
+            {
+                WriteFrameAsAsRawFunctionCallsOrCoordinates(f, exportOption == ExportOption.CppFunctionCalls);
                 f.Close();
                 return;
             }
@@ -270,7 +270,7 @@ namespace DotMatrixAnimationDesigner
         #endregion
 
         #region Private methods
-        private void WriteFrameAsAsRawFunctionCalls(FileStream f)
+        private void WriteFrameAsAsRawFunctionCallsOrCoordinates(FileStream f, bool asFunctionCalls)
         {
             var currentFrame = _frames[SelectedFrame - 1];
             var hasRowAbove = false;
@@ -282,7 +282,8 @@ namespace DotMatrixAnimationDesigner
                     {
                         if (hasRowAbove)
                             f.Write(Encoding.ASCII.GetBytes("\n"));
-                        f.Write(Encoding.ASCII.GetBytes(GetPixelAsFunctionCall(i, j)));
+                        f.Write(Encoding.ASCII.GetBytes(
+                            asFunctionCalls ? GetPixelAsFunctionCall(i, j) : GetPixelAsCoordinate(i, j)));
                         hasRowAbove = true;
                     }
                 }
@@ -359,7 +360,8 @@ namespace DotMatrixAnimationDesigner
             => $"0x{b:x2}";
         private static string GetPixelAsFunctionCall(int x, int y)
             => $"m_screen->set_value_for_pixel({x}, {y}, Screen::PixelValue::CURRENT);";
-
+        private static string GetPixelAsCoordinate(int x, int y)
+            => $"({x}, {y})";
         #endregion
     }
 }

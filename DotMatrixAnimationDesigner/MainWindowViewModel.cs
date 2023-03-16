@@ -22,6 +22,7 @@ namespace DotMatrixAnimationDesigner
     {
         Raw,
         RawCpp,
+        Coordinates,
         CppFunctionCalls
     }
 
@@ -250,15 +251,22 @@ namespace DotMatrixAnimationDesigner
                 Container.SetDimensions(Width, Height);
             }
 
-            Container.ImportGrid(numberOfFrames, frameData[3..].AsSpan());
+            Container.ImportFrames(numberOfFrames, frameData[3..].AsSpan());
         }
 
         private void ExportFrames(bool onlyExportCurrent)
         {
+            var formatSupportsMultipleFrames = ExportOption == ExportOption.Raw || ExportOption == ExportOption.RawCpp;
+            var isCppFormat = ExportOption == ExportOption.RawCpp || ExportOption == ExportOption.CppFunctionCalls;
+
             _exportDialog.Title = onlyExportCurrent ? "Export current frame" :
-                (ExportOption == ExportOption.CppFunctionCalls ? "Export current frame" : "Export all frames");
-            _exportDialog.Filter = ExportOption == ExportOption.Raw ? "Binary file (*.dat)|*.dat" : "C++ Source file (*.cpp)|*.cpp";
-            _exportDialog.DefaultExt = ExportOption == ExportOption.Raw ? "dat" : "cpp";
+                (formatSupportsMultipleFrames ? "Export all frames" : "Export current frame");
+
+            _exportDialog.Filter = ExportOption == ExportOption.Raw ? "Binary file (*.dat)|*.dat" :
+               (isCppFormat ? "C++ Source file (*.cpp)|*.cpp" : "Text file (*.txt|*.txt)");
+
+            _exportDialog.DefaultExt = ExportOption == ExportOption.Raw ? "dat" :
+                (isCppFormat ? "cpp" : "txt");
 
             if (_exportDialog.ShowDialog() != true)
                 return;
