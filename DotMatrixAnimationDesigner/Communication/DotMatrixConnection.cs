@@ -1,7 +1,9 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Security;
+using System.Text;
 using System.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 
@@ -17,6 +19,16 @@ namespace DotMatrixAnimationDesigner.Communication
         ConnectionFailed
     }
 
+    public enum ResponseCode : byte
+    {
+        Ok = 0x01,
+        TargetBusy = 0x02,
+        ChecksumMismatch = 0x03,
+        TimeoutTarget = 0x04,
+        UnexpectedResponse = 0x05,
+        TimeoutAccessPoint = 0xff
+    }
+
     internal class DotMatrixConnection : ObservableObject, IDisposable
     {
         #region Public properties
@@ -25,6 +37,7 @@ namespace DotMatrixAnimationDesigner.Communication
         private ConnectionStatus _status = ConnectionStatus.ConnectionParametersUnknown;
         private string _connectionString = string.Empty;
         private string _lastConnectionErrorMessage = string.Empty;
+        private string _transmissionProgressMessage = string.Empty;
         #endregion
 
         public ConnectionStatus Status
@@ -44,20 +57,40 @@ namespace DotMatrixAnimationDesigner.Communication
             get => _lastConnectionErrorMessage;
             private set => SetProperty(ref _lastConnectionErrorMessage, value);
         }
+
+        public string TransmissionProgressMessage
+        {
+            get => _transmissionProgressMessage;
+            private set => SetProperty(ref _transmissionProgressMessage, value);
+        }
         #endregion
 
+        #region Private fields
         private IPAddress? _ipAddress;
         private TcpClient? _client;
         private int _port;
         private bool _disposedValue;
+
         private readonly Timer _checkConnectionAliveTimer;
+        private readonly Timer _clearTransmissionMessageProgressTimer;
         private const int CheckConnectionAliveIntervalMs = 20000;
+        private const ushort Crc16Polynomial = 0x1021;
+        private const int ResponseTimeoutMs = 3000;
+        private const byte AnimationFrameMessageIdentifier = 0x10;
+        private const byte GameOfLifeConfigIdentifier = 0x11;
+
+        private static readonly Dictionary<byte, ResponseCode> s_responseCodeMap = new();
+        #endregion
 
         public DotMatrixConnection()
         {
             _checkConnectionAliveTimer = new((s) => IsConnectionStillAlive(), null, Timeout.Infinite, Timeout.Infinite);
+            _clearTransmissionMessageProgressTimer = new((s) => TransmissionProgressMessage = string.Empty, null, Timeout.Infinite, Timeout.Infinite);
+
+            var crc = ComputeCrc16Checksum(Encoding.ASCII.GetBytes("123456789"));
         }
 
+        #region Public methods
         public void SetConnectionInformation(IPAddress ipAddress, int port)
         {
             _ipAddress = ipAddress;
@@ -123,15 +156,93 @@ namespace DotMatrixAnimationDesigner.Communication
                 }
 
                 _checkConnectionAliveTimer.Change(Timeout.Infinite, Timeout.Infinite);
-                _checkConnectionAliveTimer.Dispose();
-
                 Status = ConnectionStatus.NotConnected;
             }
         }
 
-        #region Private fields
+        public void TransmitRawFrames(DotMatrixContainer container, bool transmitOnlyCurrent)
+        {
+            if (_client == default || !_client.Connected)
+                return;
+
+            Status = ConnectionStatus.Sending;
+            TransmissionProgressMessage = "Transmitting AnimationFrames header...";
+            var startFrameNumber = transmitOnlyCurrent ? container.SelectedFrame : 0;
+            var endFrameNumber = transmitOnlyCurrent ? container.SelectedFrame : container.TotalNumberOfFrames;
+            var numberOfFramesToTransmit = (endFrameNumber - startFrameNumber) + 1;
+
+            if (!SendHeaderAndAwaitResponse(_client, GetHeaderForAnimationFramesTransmission(numberOfFramesToTransmit)))
+                return;
+
+            var frameCounter = 0;
+            var checksumMismatch = false;
+            for (var i = startFrameNumber; i <= endFrameNumber; i++)
+            {
+                TransmissionProgressMessage = $"[Frame {frameCounter + 1}/{numberOfFramesToTransmit}] {(checksumMismatch ? "Checksum mismatch, sending again" : "Sending")}...";
+                _client.Client.Send(GetMessage(container.GetBytesForFrame(i), frameCounter));
+                TransmissionProgressMessage = $"[Frame {frameCounter + 1}/{numberOfFramesToTransmit}] Awaiting response...";
+
+                var responseCode = GetResponseCodeFromClient(_client);
+                if (responseCode == ResponseCode.ChecksumMismatch)
+                {
+                    checksumMismatch = true;
+                    i--;
+                    continue;
+                }
+                else if (responseCode != ResponseCode.Ok)
+                {
+                    TransmissionProgressMessage = $"Transmission failed, got '{responseCode}' response";
+                    ResetConnectionStatusAndSetClearMessageTimer();
+                    return;
+                }
+
+                checksumMismatch = false;
+            }
+
+            TransmissionProgressMessage = "Successfully transmitted all data";
+            ResetConnectionStatusAndSetClearMessageTimer();
+        }
+
+        public void TransmitGameOfLifeConfig(DotMatrixContainer container)
+        {
+            if (_client == default || !_client.Connected)
+                return;
+
+            Status = ConnectionStatus.Sending;
+            TransmissionProgressMessage = "Transmitting GameOfLifeConfig header...";
+            if (!SendHeaderAndAwaitResponse(_client, GetHeaderForGameOfLifeConfigTransmission()))
+                return;
+            var checksumMismatch = false;
+            while (true)
+            {
+                TransmissionProgressMessage = checksumMismatch ? "Checksum mismatch, sending again..." : "Sending GameOfLife data to target...";
+                _client.Client.Send(GetMessage(container.GetBytesForFrameAsCoordinates(container.SelectedFrame)));
+                TransmissionProgressMessage = "Awaiting response...";
+
+                var responseCode = GetResponseCodeFromClient(_client);
+                if (responseCode == ResponseCode.ChecksumMismatch)
+                {
+                    checksumMismatch = true;
+                    continue;
+                }
+
+                if (responseCode != ResponseCode.Ok)
+                {
+                    TransmissionProgressMessage = $"Transmission failed, got '{responseCode}' response";
+                    ResetConnectionStatusAndSetClearMessageTimer();
+                }
+                break;
+            }
+
+        }
+        #endregion
+
+        #region Private methods
         private void IsConnectionStillAlive()
         {
+            if (Status == ConnectionStatus.Sending)
+                return;
+
             var connectionDisconnect = false;
             var bytesAvailable = false;
             if (_client != null && _client.Client.Connected)
@@ -145,6 +256,118 @@ namespace DotMatrixAnimationDesigner.Communication
             else
                 _checkConnectionAliveTimer.Change(CheckConnectionAliveIntervalMs, Timeout.Infinite);
         }
+
+        private bool SendHeaderAndAwaitResponse(TcpClient client, ReadOnlySpan<byte> header)
+        {
+            client.Client.Send(header);
+            TransmissionProgressMessage = "Awaiting response...";
+            var responseCode = GetResponseCodeFromClient(client);
+            if (responseCode != ResponseCode.Ok)
+            {
+                TransmissionProgressMessage = $"Transmission failed, got '{responseCode}' response";
+                ResetConnectionStatusAndSetClearMessageTimer();
+            }
+            return responseCode == ResponseCode.Ok;
+        }
+
+        private void ResetConnectionStatusAndSetClearMessageTimer()
+        {
+            Status = ConnectionStatus.Connected;
+            _clearTransmissionMessageProgressTimer.Change(5000, Timeout.Infinite);
+        }
+
+        private static ReadOnlySpan<byte> GetHeaderForAnimationFramesTransmission(int numberOfFrames)
+        {
+            var result = new byte[3];
+            result[0] = AnimationFrameMessageIdentifier;
+            var numberOfFramesBuffer = BitConverter.GetBytes((ushort)numberOfFrames);
+            Buffer.BlockCopy(numberOfFramesBuffer, 0, result, 1, numberOfFramesBuffer.Length);
+            return result;
+        }
+
+        private static ReadOnlySpan<byte> GetHeaderForGameOfLifeConfigTransmission()
+            => new(new byte[] { GameOfLifeConfigIdentifier });
+
+        private static ReadOnlySpan<byte> GetMessage(ReadOnlySpan<byte> payloadBytes, int frameNumber = -1)
+        {
+            var payloadLength = (ushort)payloadBytes.Length;
+            var crc = ComputeCrc16Checksum(payloadBytes);
+            var includeFrameNumber = frameNumber > -1;
+
+            // Header is optionally frame number + payloadLength + crc
+            var message = new byte[(includeFrameNumber ? 2 : 0) + 2 + 2 + payloadLength];
+            var idx = 0;
+            if (includeFrameNumber)
+            {
+                message[idx++] = (byte)((ushort)frameNumber & 0x00ff);
+                message[idx++] = (byte)(((ushort)frameNumber & 0xff00) >> 8);
+            }
+            message[idx++] = (byte)(crc & 0xff);
+            message[idx++] = (byte)((crc >> 8) & 0xff);
+            message[idx++] = (byte)(payloadLength & 0xff);
+            message[idx++] = (byte)((payloadLength >> 8) & 0xff);
+            Buffer.BlockCopy(payloadBytes.ToArray(), 0, message, idx, payloadLength);
+
+            return message;
+        }
+
+        private static ResponseCode GetResponseCodeFromClient(TcpClient client)
+        {
+            try
+            {
+                client.Client.ReceiveTimeout = ResponseTimeoutMs;
+                var buffer = new byte[client.ReceiveBufferSize];
+                var numberOfReceivedBytes = client.Client.Receive(buffer);
+                if (numberOfReceivedBytes == 1 && TryGetAsResponseCode(buffer[0], out var responseCode))
+                    return responseCode;
+                else
+                    return ResponseCode.UnexpectedResponse;
+            }
+            catch (SocketException)
+            {
+                return ResponseCode.TimeoutAccessPoint;
+            }
+
+
+        }
+
+        private static bool TryGetAsResponseCode(byte rawValue, out ResponseCode responseCode)
+        {
+            if (s_responseCodeMap.TryGetValue(rawValue, out responseCode))
+                return true;
+
+            if (Enum.IsDefined(typeof(ResponseCode), rawValue))
+            {
+                responseCode = (ResponseCode)rawValue;
+                s_responseCodeMap.Add(rawValue, responseCode);
+                return true;
+            }
+            else
+            {
+                responseCode = ResponseCode.UnexpectedResponse;
+                return false;
+            }
+        }
+
+        private static ushort ComputeCrc16Checksum(ReadOnlySpan<byte> bytes)
+        {
+            // See https://en.wikipedia.org/wiki/Computation_of_cyclic_redundancy_checks
+            ushort crc = 0xffff;
+            var i = 0;
+            while (i < bytes.Length)
+            {
+                crc ^= (ushort)(bytes[i] << 8);
+                for (var j = 0; j < 8; j++)
+                {
+                    if ((crc & 0x8000) > 0)
+                        crc = (ushort)((ushort)(crc << 1) ^ Crc16Polynomial);
+                    else
+                        crc = (ushort)(crc << 1);
+                }
+                i++;
+            }
+            return crc;
+        }
         #endregion
 
         #region Disposal
@@ -153,7 +376,12 @@ namespace DotMatrixAnimationDesigner.Communication
             if (!_disposedValue)
             {
                 if (disposing)
+                {
                     Disconnect();
+                    _checkConnectionAliveTimer.Dispose();
+                    _clearTransmissionMessageProgressTimer.Change(Timeout.Infinite, Timeout.Infinite);
+                    _clearTransmissionMessageProgressTimer.Dispose();
+                }
                 _disposedValue = true;
             }
         }

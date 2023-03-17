@@ -1,5 +1,9 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Net;
+using System.Net.Sockets;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
@@ -87,6 +91,10 @@ namespace DotMatrixAnimationDesigner
         public UdpBroadcastListener UdpListener { get; }
 
         public DotMatrixConnection Connection { get; }
+
+        public List<IPAddress> LocalNetworkInterfaces { get; }
+
+        public IPAddress SelectedNetworkInterface { get; set; }
         #endregion
 
         #region Commands
@@ -241,6 +249,8 @@ namespace DotMatrixAnimationDesigner
             UdpListener = new();
 
             UdpListener.UdpListenDone += UdpListenDone;
+            LocalNetworkInterfaces = FetchLocalIpv4Addresses();
+            SelectedNetworkInterface = LocalNetworkInterfaces.First();
         }
 
         private void UdpListenDone(object? sender, UdpListenResult e)
@@ -301,7 +311,7 @@ namespace DotMatrixAnimationDesigner
         private void ScanNetwork()
         {
             IsScanningNetwork = true;
-            Task.Run(() => UdpListener.StartUdpBroadcastListen(UdpListenPort));
+            Task.Run(() => UdpListener.StartUdpBroadcastListen(SelectedNetworkInterface, UdpListenPort));
         }
 
         private void ConnectOrDisconnect()
@@ -319,6 +329,27 @@ namespace DotMatrixAnimationDesigner
         {
             if (Connection.Status != ConnectionStatus.Connected)
                 return;
+
+            Task.Run(() =>
+            {
+                if (TransmitOption == TransmitOption.AnimationFrames)
+                    Connection.TransmitRawFrames(Container, onlyIncludeCurrent);
+                else if (TransmitOption == TransmitOption.GameOfLifeConfig)
+                    Connection.TransmitGameOfLifeConfig(Container);
+            });
+        }
+
+        private static List<IPAddress> FetchLocalIpv4Addresses()
+        {
+            List<IPAddress> localAddresses = new();
+            var host = Dns.GetHostEntry(Dns.GetHostName());
+            foreach (var ip in host.AddressList)
+            {
+                if (ip.AddressFamily == AddressFamily.InterNetwork)
+                    localAddresses.Add(ip);
+            }
+
+            return localAddresses;
         }
         #endregion
     }

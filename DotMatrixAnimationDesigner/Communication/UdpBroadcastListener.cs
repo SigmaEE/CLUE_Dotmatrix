@@ -33,13 +33,14 @@ namespace DotMatrixAnimationDesigner.Communication
         private const int ExpectedNumberOfBytesInUdpPacket = 6;
         #endregion
 
-        public void StartUdpBroadcastListen(int updPort)
+        public void StartUdpBroadcastListen(IPAddress localAddress, int udpPort)
         {
-            using var client = new UdpClient(updPort);
+            var endpoint = new IPEndPoint(localAddress, udpPort);
+            using var client = new UdpClient(endpoint);
             client.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
             client.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReceiveTimeout, 45000);
 
-            var broadcastListenEndPoint = new IPEndPoint(IPAddress.Any, updPort);
+            var broadcastListenEndPoint = new IPEndPoint(IPAddress.Any, udpPort);
             UdpListenResult result;
             try
             {

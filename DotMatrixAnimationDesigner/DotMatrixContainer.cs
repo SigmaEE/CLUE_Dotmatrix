@@ -239,7 +239,7 @@ namespace DotMatrixAnimationDesigner
             {
                 for (var i = 0; i < TotalNumberOfFrames; i++)
                 {
-                    var frameBytes = GetBytesForFrameRowWise(_frames[i]);
+                    var frameBytes = GetBytesForFrame(i + 1);
                     if (exportOption == ExportOption.RawCpp)
                     {
                         f.Write(Encoding.ASCII.GetBytes($"// Frame {i}\n"));
@@ -266,6 +266,35 @@ namespace DotMatrixAnimationDesigner
                 f.Write(Encoding.ASCII.GetBytes(" };"));
 
             f.Close();
+        }
+
+        public ReadOnlySpan<byte> GetBytesForFrameAsCoordinates(int frameNumber)
+        {
+            CopyActiveToBackingBuffer();
+            List<(int x, int y)> setPixels = new();
+            for (var i = 0; i < GridHeight; i++)
+            {
+                for (var j = 0; j < GridWidth; j++)
+                {
+                    if (_frames[frameNumber - 1][ToGridIndex(j, i)])
+                        setPixels.Add((i, j));
+                }
+            }
+
+            var buffer = new byte[setPixels.Count * 2];
+            for (var i = 0; i < setPixels.Count; i++)
+            {
+                buffer[i * 2] = (byte)setPixels[i].x;
+                buffer[(i * 2) + 1] = (byte)setPixels[i].y;
+            }
+            return buffer;
+
+        }
+
+        public ReadOnlySpan<byte> GetBytesForFrame(int frameNumber)
+        {
+            CopyActiveToBackingBuffer();
+            return GetBytesForFrameRowWise(_frames[frameNumber - 1]);
         }
         #endregion
 

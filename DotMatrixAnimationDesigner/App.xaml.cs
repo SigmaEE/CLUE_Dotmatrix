@@ -50,7 +50,7 @@ namespace DotMatrixAnimationDesigner
 
         private static void ErrorDialog(string caption, string msg)
         {
-            _ = MessageBox.Show(caption, msg, MessageBoxButton.OK, MessageBoxImage.Error);
+            _ = MessageBox.Show(msg, caption, MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 }
