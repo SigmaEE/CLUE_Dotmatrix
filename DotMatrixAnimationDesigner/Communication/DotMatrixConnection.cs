@@ -231,13 +231,12 @@ namespace DotMatrixAnimationDesigner.Communication
                 }
 
                 if (responseCode != ResponseCode.Ok)
-                {
                     TransmissionProgressMessage = $"Transmission failed, got '{responseCode}' response";
-                    ResetConnectionStatusAndSetClearMessageTimer();
-                }
+                else
+                    TransmissionProgressMessage = "Successfully transmitted all data";
+                ResetConnectionStatusAndSetClearMessageTimer();
                 break;
             }
-
         }
         #endregion
 

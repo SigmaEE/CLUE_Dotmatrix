@@ -277,7 +277,7 @@ namespace DotMatrixAnimationDesigner
                 for (var j = 0; j < GridWidth; j++)
                 {
                     if (_frames[frameNumber - 1][ToGridIndex(j, i)])
-                        setPixels.Add((i, j));
+                        setPixels.Add((j, i));
                 }
             }
 

@@ -187,7 +187,7 @@
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding Path=IsScanningNetwork}" Value="True">
                                             <Setter Property="Text" Value="Scanning network..." />
-                                            <Setter Property="ToolTip" Value="Listener for UDP broadcasts on local network..." />
+                                            <Setter Property="ToolTip" Value="Listening for UDP broadcasts on local network..." />
                                             <Setter Property="Foreground" Value="{StaticResource MainInfoColor}" />
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding Path=Connection.Status}" Value="{x:Static communication:ConnectionStatus.NotConnected}">
