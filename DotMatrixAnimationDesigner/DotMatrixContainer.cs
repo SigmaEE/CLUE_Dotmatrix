@@ -14,6 +14,7 @@ namespace DotMatrixAnimationDesigner
         #region Backing fields
         private int _totalNumberOfFrames = 1;
         private int _selectedFrame;
+        private int _selectedFrameTime = 0;
         private int _gridWidth;
         private int _gridHeight;
         #endregion
@@ -30,6 +31,15 @@ namespace DotMatrixAnimationDesigner
             set => SetProperty(ref _selectedFrame, value);
         }
 
+        public int SelectedFrameTime
+        {
+            get => _selectedFrameTime;
+            set
+            {
+                _frames[SelectedFrame - 1] = (value, _frames[SelectedFrame - 1].pixels);
+                SetProperty(ref _selectedFrameTime, value);
+            }
+        }
         public int GridWidth
         {
             get => _gridWidth;
@@ -46,7 +56,7 @@ namespace DotMatrixAnimationDesigner
         #endregion
 
         #region Private fields
-        private readonly List<List<bool>> _frames = new();
+        private readonly List<(int frameTime, List<bool> pixels)> _frames = new();
         #endregion
 
         #region Public methods
@@ -67,7 +77,7 @@ namespace DotMatrixAnimationDesigner
                 var frame = new List<bool>();
                 for (var j = 0; j < width * height; j++)
                     frame.Add(false);
-                _frames.Add(frame);
+                _frames.Add((0, frame));
             }
 
             TotalNumberOfFrames = _frames.Count;
@@ -140,7 +150,7 @@ namespace DotMatrixAnimationDesigner
             for (var i = 0; i < GridWidth * GridHeight; i++)
                 newFrame.Add(duplicateCurrent && Dots[i].IsChecked);
 
-            _frames.Add(newFrame);
+            _frames.Add((duplicateCurrent ? SelectedFrameTime : 0, newFrame));
             SelectedFrame = TotalNumberOfFrames;
             SetSelectedFrameToActive();
         }
@@ -205,9 +215,9 @@ namespace DotMatrixAnimationDesigner
                 }
 
                 if (i > 0)
-                    _frames.Add(newFrame);
+                    _frames.Add((0, newFrame));
                 else
-                    _frames[SelectedFrame - 1] = newFrame;
+                    _frames[SelectedFrame - 1] = (0, newFrame);
             }
 
             TotalNumberOfFrames = _frames.Count;
@@ -255,7 +265,7 @@ namespace DotMatrixAnimationDesigner
             }
             else
             {
-                var frameBytes = GetBytesForFrameRowWise(_frames[SelectedFrame - 1]);
+                var frameBytes = GetBytesForFrameRowWise(_frames[SelectedFrame - 1].pixels);
                 if (exportOption == ExportOption.RawCpp)
                     WriteFrameAsText(f, frameBytes);
                 else
@@ -276,7 +286,7 @@ namespace DotMatrixAnimationDesigner
             {
                 for (var j = 0; j < GridWidth; j++)
                 {
-                    if (_frames[frameNumber - 1][ToGridIndex(j, i)])
+                    if (_frames[frameNumber - 1].pixels[ToGridIndex(j, i)])
                         setPixels.Add((j, i));
                 }
             }
@@ -294,7 +304,7 @@ namespace DotMatrixAnimationDesigner
         public ReadOnlySpan<byte> GetBytesForFrame(int frameNumber)
         {
             CopyActiveToBackingBuffer();
-            return GetBytesForFrameRowWise(_frames[frameNumber - 1]);
+            return GetBytesForFrameRowWise(_frames[frameNumber - 1].pixels);
         }
         #endregion
 
@@ -307,7 +317,7 @@ namespace DotMatrixAnimationDesigner
             {
                 for (var j = 0; j < GridWidth; j++)
                 {
-                    if (currentFrame[ToGridIndex(j, i)])
+                    if (currentFrame.pixels[ToGridIndex(j, i)])
                     {
                         if (hasRowAbove)
                             f.Write(Encoding.ASCII.GetBytes("\n"));
@@ -373,13 +383,14 @@ namespace DotMatrixAnimationDesigner
         private void SetSelectedFrameToActive()
         {
             for (var i = 0; i < Dots.Count; i++)
-                Dots[i].IsChecked = _frames[SelectedFrame - 1][i];
+                Dots[i].IsChecked = _frames[SelectedFrame - 1].pixels[i];
+            SelectedFrameTime = _frames[SelectedFrame - 1].frameTime;
         }
 
         private void CopyActiveToBackingBuffer()
         {
             for (var i = 0; i < Dots.Count; i++)
-                _frames[SelectedFrame - 1][i] = Dots[i].IsChecked;
+                _frames[SelectedFrame - 1].pixels[i] = Dots[i].IsChecked;
         }
 
         private int ToGridIndex(int x, int y)
