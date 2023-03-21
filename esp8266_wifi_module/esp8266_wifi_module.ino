@@ -205,7 +205,7 @@ void handle_incoming_transmission(WiFiClient& client) {
 
   DEBUG_PRINTF("Message identifier: 0x%02X\n", identifier_buffer[0]);
 
-  uint16_t number_of_frames = 1;
+  uint16_t number_of_frames;
   uint8_t header_length;
   response_code code;
 
@@ -228,6 +228,7 @@ void handle_incoming_transmission(WiFiClient& client) {
   else if (identifier_buffer[0] == game_of_life_config_message_identifier) {
     code = forward_transmission_header(game_of_life_config_message_identifier, NULL, 0);
     header_length = 4;
+    number_of_frames = 1;
   }
   else {
     DEBUG_PRINTF("Got unknown message identifier (0x%02x)\n", identifier_buffer[0]);
