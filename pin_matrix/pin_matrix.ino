@@ -7,21 +7,40 @@
 #include "RevealTextAnimation.h"
 #include "TextScroller.h"
 #include "TextUtilities.h"
+#include "SerialCommunicator.h"
+#include "Messages.h"
 
-#define IC1_ENABLE 3
-#define IC1_DATA 8
-#define IC1_A0 2
-#define IC1_A1 10
-#define IC1_A2 1
-#define IC1_B0 9
-#define IC1_B1 0
-#define IC3_ENABLE 6
-#define IC2_ENABLE 11
-#define IC2_IC3_A0 7
-#define IC2_IC3_A1 5
-#define IC2_IC3_A2 13
-#define IC2_IC3_B0 12
-#define IC2_IC3_B1 4
+// Arduino Nano pinout
+// #define IC1_ENABLE 3
+// #define IC1_DATA 8
+// #define IC1_A0 2
+// #define IC1_A1 10
+// #define IC1_A2 1
+// #define IC1_B0 9
+// #define IC1_B1 0
+// #define IC3_ENABLE 6
+// #define IC2_ENABLE 11
+// #define IC2_IC3_A0 7
+// #define IC2_IC3_A1 5
+// #define IC2_IC3_A2 13
+// #define IC2_IC3_B0 12
+// #define IC2_IC3_B1 4
+
+// Arduino Mega pinout
+#define IC1_ENABLE 22
+#define IC1_B1 23
+#define IC1_A2 24
+#define IC1_A0 25
+#define IC3_ENABLE 26
+#define IC2_IC3_B1 27
+#define IC2_IC3_A1 28
+#define IC2_IC3_A0 29
+#define IC1_DATA 30
+#define IC1_B0 31
+#define IC1_A1 32
+#define IC2_ENABLE 33
+#define IC2_IC3_B0 34
+#define IC2_IC3_A2 35
 
 #define MATRIX_WIDTH 28
 #define MATRIX_HEIGHT 16
@@ -47,14 +66,13 @@
  The column mapping was by testing each possible input, i.e. it can not be deduced from the data sheet alone. */
 
 #define MAP_ROW_IDX_TO_OUTPUT(x) (x + 1 + (x / 7))
-const uint8_t COLUMN_MAP[] = { 1, 2, 3, 16, 17, 18, 19, 9, 10, 11, 24, 25, 26, 27, 5, 6, 7, 20, 21, 22, 23, 13, 14, 15, 28, 29, 30, 31 };
+const uint8_t COLUMN_MAP[] = { 1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 22, 23, 25, 26, 27, 28, 29, 30, 31 };
 
 bool clear_at_startup = true;
 TextScroller::Direction scroll_direction = TextScroller::Direction::LEFT_TO_RIGHT;
 Screen screen(MATRIX_WIDTH, MATRIX_HEIGHT);
-ThreeWire wire_setup(A3, A4, A2); // IO, SCLK, CE
+ThreeWire wire_setup(52, 51, 53); // DAT, CLK, RST
 RtcDS1302<ThreeWire> rtc(wire_setup);
-
 
 void write_to_column_outputs(uint8_t v) {
   digitalWrite(IC1_A0, bitRead(v, 0) == 0 ? LOW : HIGH);
