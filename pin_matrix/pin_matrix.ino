@@ -214,10 +214,8 @@ void setup() {
 
   if (!rtc.GetIsWriteProtected()) 
     rtc.SetIsWriteProtected(true);
-#if DEBUG
-  Serial.begin(115200);
-#endif
 
+  Serial.begin(115200);
   Serial1.begin(115200);
   screen.clear(true);
   update_screen();
@@ -249,15 +247,7 @@ void loop() {
   static RtcDateTime now;
   static SerialCommunicator communicator(Serial1);
   static Animator animator(&screen);
-
-  //static GameOfLife game_of_life(&screen, GameOfLife::starting_configuration::SEED_1);
-
-  // game_of_life.init();
-  // while(true) {
-  //   game_of_life.tick();
-  //   update_screen();
-  //   delay(100);
-  // }
+  static GameOfLife game_of_life(&screen);
 
   now = rtc.GetDateTime();
 
@@ -299,6 +289,18 @@ void loop() {
         animator.init(msg);
         while(!animator.is_done()) {
           animator.tick_animation();
+          update_screen();
+        }
+      }
+      else if (communicator.get_current_message()->get_type() == Message::Type::GameOfLifeConfig) {
+        GameOfLifeConfigMessage* msg = static_cast<GameOfLifeConfigMessage*>(communicator.get_current_message());
+        game_of_life.init(msg);
+        update_screen();
+        bool is_done = false;
+        while (!is_done) {
+          delay(500);
+          game_of_life.tick();
+          is_done = game_of_life.is_done();
           update_screen();
         }
       }

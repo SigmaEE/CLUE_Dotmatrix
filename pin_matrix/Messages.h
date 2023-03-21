@@ -160,7 +160,7 @@ public:
     while (true) {
       if (!Message::try_read_crc_and_payload_length(serial_interface, &crc, &payload_length))
         return SerialCommunicator::ReadResult::UnexpectedData;
-    
+
       uint8_t frame_buffer[payload_length];
       if (serial_interface.readBytes(frame_buffer, payload_length) != payload_length)
         return SerialCommunicator::ReadResult::UnexpectedData;
@@ -177,8 +177,10 @@ public:
       for (uint16_t i = 0; i < m_message_size; i++)
         m_message_data[i] = frame_buffer[i];
 
+      communicator.send_result(SerialCommunicator::ReadResult::Ok);
       break;
     }
+
     return SerialCommunicator::ReadResult::Ok;
   }
 

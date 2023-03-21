@@ -1,21 +1,18 @@
 #include "GameOfLife.h"
 
-GameOfLife::GameOfLife(Screen* screen, GameOfLife::starting_configuration starting_config) 
-  : m_screen(screen),
-  m_starting_config(starting_config)
+GameOfLife::GameOfLife(Screen* screen) 
+  : m_screen(screen)
   { }
 
-void GameOfLife::init() {
+void GameOfLife::init(GameOfLifeConfigMessage* config) {
   m_screen->clear(true);
 
-  switch (m_starting_config) {
-    case GameOfLife::starting_configuration::SEED_1:
-      m_screen->set_value_for_pixel(1, 2, Screen::PixelValue::CURRENT);
-      m_screen->set_value_for_pixel(2, 3, Screen::PixelValue::CURRENT);
-      m_screen->set_value_for_pixel(3, 1, Screen::PixelValue::CURRENT);
-      m_screen->set_value_for_pixel(3, 2, Screen::PixelValue::CURRENT);
-      m_screen->set_value_for_pixel(3, 3, Screen::PixelValue::CURRENT);
-    break;
+  uint16_t number_of_coordinates = config->get_message_size() / 2;
+  uint8_t x, y;
+  for (uint16_t i = 0; i < number_of_coordinates; i++) {
+    x = config->get_message_data()[i * 2];
+    y = config->get_message_data()[(i * 2) + 1];
+    m_screen->set_value_for_pixel(x, y, Screen::PixelValue::CURRENT);
   }
 }
 
@@ -51,4 +48,19 @@ void GameOfLife::tick() {
   }
 }
 
-bool GameOfLife::is_done() const { return false; }
+bool GameOfLife::is_done() const {
+  bool has_change, last_value, current_value;
+  has_change = false;
+  for (uint8_t i = 0; i < m_screen->screen_width(); i++) {
+    for (uint8_t j = 0; j < m_screen->screen_height(); j++) {
+      last_value = m_screen->is_pixel_value_set(i, j, Screen::PixelValue::PREVIOUS);
+      current_value = m_screen->is_pixel_value_set(i, j, Screen::PixelValue::CURRENT);
+      if (last_value != current_value) {
+        has_change = true;
+        break;
+      }
+    }
+  }
+
+  return !has_change;
+}

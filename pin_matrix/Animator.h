@@ -8,7 +8,7 @@ class Animator {
 public:
   Animator(Screen*);
 
-  void init(AnimationFramesMessage* animation);
+  void init(AnimationFramesMessage*);
 
   void tick_animation();
 

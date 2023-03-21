@@ -1,17 +1,14 @@
 #pragma once
 
 #include "Screen.h"
+#include "Messages.h"
 
 class GameOfLife {
 
-public: 
-  enum class starting_configuration {
-    SEED_1
-  };
-
-  GameOfLife(Screen*, starting_configuration);
+public:
+  GameOfLife(Screen*);
   
-  void init();
+  void init(GameOfLifeConfigMessage*);
 
   void tick();
 
@@ -19,5 +16,4 @@ public:
 
 private:
   Screen* m_screen;
-  starting_configuration m_starting_config;
 };
