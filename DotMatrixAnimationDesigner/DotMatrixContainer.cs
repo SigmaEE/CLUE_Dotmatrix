@@ -193,18 +193,20 @@ namespace DotMatrixAnimationDesigner
         public void ImportFrames(int numberOfFrames, ReadOnlySpan<byte> frameData)
         {
             var numberOfValuesPerRow = (int)Math.Ceiling(GridWidth / 8.0);
-            var valuesPerFrame = numberOfValuesPerRow * GridHeight;
+            var valuesPerFrame = 2 + (numberOfValuesPerRow * GridHeight);
             var remainingValuesOnRow = GridWidth;
 
             for (var i = 0; i < numberOfFrames; i++)
             {
-                var newFrame = new List<bool>();
+                var newFramePixels = new List<bool>();
                 var frameStart = i * valuesPerFrame;
-                foreach (var value in frameData[frameStart..(frameStart + valuesPerFrame)])
+                var newFrameDuration = frameData[frameStart + 1] << 8 | frameData[frameStart];
+                frameStart += 2;
+                foreach (var value in frameData[frameStart..(frameStart + valuesPerFrame - 2)])
                 {
                     for (var bitShift = 7; bitShift >= 0; bitShift--)
                     {
-                        newFrame.Add(((value >> bitShift) & 0x01) == 1);
+                        newFramePixels.Add(((value >> bitShift) & 0x01) == 1);
                         remainingValuesOnRow--;
                         if (remainingValuesOnRow == 0)
                         {
@@ -215,9 +217,9 @@ namespace DotMatrixAnimationDesigner
                 }
 
                 if (i > 0)
-                    _frames.Add((0, newFrame));
+                    _frames.Add((newFrameDuration, newFramePixels));
                 else
-                    _frames[SelectedFrame - 1] = (0, newFrame);
+                    _frames[SelectedFrame - 1] = (newFrameDuration, newFramePixels);
             }
 
             TotalNumberOfFrames = _frames.Count;
