@@ -29,14 +29,6 @@
         <s:Boolean x:Key="True">True</s:Boolean>
         <s:Boolean x:Key="False">False</s:Boolean>
 
-        <ObjectDataProvider x:Key="exportOptions"
-                            MethodName="GetValues"
-                            ObjectType="{x:Type s:Enum}">
-            <ObjectDataProvider.MethodParameters>
-                <x:Type TypeName="local:ExportOption" />
-            </ObjectDataProvider.MethodParameters>
-        </ObjectDataProvider>
-
         <ObjectDataProvider x:Key="transmitOptions"
                             MethodName="GetValues"
                             ObjectType="{x:Type s:Enum}">
@@ -453,31 +445,11 @@
                 </StackPanel>
             </StackPanel>
 
-            <!-- Action buttons and export options -->
+            <!-- Action buttons and transmit options -->
             <StackPanel Orientation="Vertical"
                         Grid.Column="1"
                         HorizontalAlignment="Right"
                         VerticalAlignment="Bottom">
-
-                <!-- Export option -->
-                <StackPanel Orientation="Horizontal"
-                            HorizontalAlignment="Right"
-                            Margin="0,0,4,6">
-                    <TextBlock Style="{StaticResource MainTextBlockStyle}"
-                               FontSize="9"
-                               FontStyle="Italic"
-                               Text="Export as..."
-                               Margin="5,3,5,0"/>
-
-                    <ComboBox   Style="{StaticResource ComboBoxStyle}"
-                                ItemsSource="{Binding Source={StaticResource exportOptions}}"
-                                SelectedValue="{Binding Path=ExportOption, Mode=TwoWay}"
-                                Width="120"
-                                HorizontalContentAlignment="Right"
-                                VerticalContentAlignment="Bottom"
-                                FontSize="9" />
-
-                </StackPanel>
 
                 <!-- Transmit option -->
                 <StackPanel Orientation="Horizontal"
@@ -534,15 +506,8 @@
                             Content="Export frame"
                             Command="{Binding Path=ExportFrameCommand}"
                             Width="100"
-                            Margin="10,0,10,0">
-                        <Button.ToolTip>
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="Press to export the current frame in " />
-                                <TextBlock Text="{Binding Path=ExportOption}" 
-                                           FontWeight="Bold"/>
-                                <TextBlock Text=" format [Ctrl + E]" />
-                            </StackPanel>
-                        </Button.ToolTip>
+                            Margin="10,0,10,0"
+                            ToolTip="Press to export the current frame [Ctrl + E]">
                     </Button>
 
                     <Button Content="Export frames"
@@ -553,14 +518,6 @@
                                 <Setter Property="IsEnabled" Value="True" />
                                 <Setter Property="ToolTip" Value="Press to export all frames [Alt + E]" />
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding Path=ExportOption}" Value="{x:Static local:ExportOption.CppFunctionCalls}">
-                                        <Setter Property="IsEnabled" Value="False" />
-                                        <Setter Property="ToolTip" Value="CppFunctionCalls export format does not support multiple frames" />
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding Path=ExportOption}" Value="{x:Static local:ExportOption.Coordinates}">
-                                        <Setter Property="IsEnabled" Value="False" />
-                                        <Setter Property="ToolTip" Value="Coordinates export format does not support multiple frames" />
-                                    </DataTrigger>
                                     <DataTrigger Binding="{Binding Path=Container.TotalNumberOfFrames}" Value="1">
                                         <Setter Property="IsEnabled" Value="False" />
                                         <Setter Property="ToolTip" Value="Cannot export multiple frames - there is only one" />
@@ -605,22 +562,20 @@
                             Width="100">
                         <Button.Style>
                             <Style TargetType="{x:Type Button}" BasedOn="{StaticResource ButtonPrimaryStyle}">
-                                <Setter Property="IsEnabled" Value="True" />
-                                <Setter Property="ToolTip" Value="" />
+                                <Setter Property="IsEnabled" Value="False" />
+                                <Setter Property="ToolTip" Value="Cannot send frame - not connected to a dot matrix server " />
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding Path=Connection.Status}" Value="{x:Static communication:ConnectionStatus.Connected}">
+                                        <Setter Property="IsEnabled" Value="True" />
                                         <Setter Property="ToolTip" Value="Press to send all frames to target pin matrix [Alt + S]" />
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding Path=TransmitOption}" Value="{x:Static local:TransmitOption.GameOfLifeConfig}">
-                                        <Setter Property="IsEnabled" Value="False" />
                                         <Setter Property="ToolTip" Value="GameOfLifeConfig transmit format does not support multiple frames" />
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding Path=Container.TotalNumberOfFrames}" Value="1">
-                                        <Setter Property="IsEnabled" Value="False" />
                                         <Setter Property="ToolTip" Value="Cannot send multiple frames - there is only one" />
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding Path=Connection.Status}" Value="{x:Static communication:ConnectionStatus.Sending}">
-                                        <Setter Property="IsEnabled" Value="False" />
                                         <Setter Property="ToolTip" Value="Sending..." />
                                     </DataTrigger>
                                 </Style.Triggers>
@@ -698,7 +653,7 @@
                             </Style.Triggers>
                         </Style>
                     </StackPanel.Style>
-                    
+
                     <TextBlock Style="{StaticResource MainTextBlockStyle}"
                             Text="FRAME" 
                             FontSize="8"
@@ -716,7 +671,6 @@
                                 FontSize="20"/>
                     </StackPanel>
                 </StackPanel>
-                
 
                 <Button Style="{StaticResource ButtonPrimaryStyle}"
                         Content="Duplicate frame"

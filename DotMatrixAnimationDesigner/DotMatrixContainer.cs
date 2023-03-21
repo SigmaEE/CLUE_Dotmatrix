@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
-using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace DotMatrixAnimationDesigner
@@ -40,6 +39,7 @@ namespace DotMatrixAnimationDesigner
                 SetProperty(ref _selectedFrameTime, value);
             }
         }
+
         public int GridWidth
         {
             get => _gridWidth;
@@ -225,56 +225,29 @@ namespace DotMatrixAnimationDesigner
             SetSelectedFrameToActive();
         }
 
-        public void WriteCurrentContentToFile(string filePath, bool includeAllFrames, ExportOption exportOption)
+        public void WriteCurrentContentToFile(string filePath, bool includeAllFrames)
         {
             CopyActiveToBackingBuffer();
             var f = File.Create(filePath);
 
-            if (exportOption == ExportOption.CppFunctionCalls || exportOption == ExportOption.Coordinates)
-            {
-                WriteFrameAsAsRawFunctionCallsOrCoordinates(f, exportOption == ExportOption.CppFunctionCalls);
-                f.Close();
-                return;
-            }
-
-            if (exportOption == ExportOption.RawCpp)
-                f.Write(Encoding.ASCII.GetBytes("uint8_t data[] = { "));
-
             var numberOfFramesInFile = includeAllFrames ? (byte)TotalNumberOfFrames : (byte)1;
-            f.Write(exportOption == ExportOption.RawCpp ? Encoding.ASCII.GetBytes($"{GetByteAsText(numberOfFramesInFile)}, ") : new byte[] { numberOfFramesInFile });
-            f.Write(exportOption == ExportOption.RawCpp ? Encoding.ASCII.GetBytes($"{GetByteAsText((byte)GridWidth)}, ") : new byte[] { (byte)GridWidth });
-            f.Write(exportOption == ExportOption.RawCpp ? Encoding.ASCII.GetBytes($"{GetByteAsText((byte)GridHeight)},\n") : new byte[] { (byte)GridHeight });
+            f.Write(new byte[] { numberOfFramesInFile });
+            f.Write(new byte[] { (byte)GridWidth });
+            f.Write(new byte[] { (byte)GridHeight });
 
             if (includeAllFrames)
             {
                 for (var i = 0; i < TotalNumberOfFrames; i++)
                 {
                     var frameBytes = GetBytesForFrame(i + 1);
-                    if (exportOption == ExportOption.RawCpp)
-                    {
-                        f.Write(Encoding.ASCII.GetBytes($"// Frame {i}\n"));
-                        WriteFrameAsText(f, frameBytes);
-                        if (i < TotalNumberOfFrames - 1)
-                            f.Write(Encoding.ASCII.GetBytes(",\n"));
-                    }
-                    else
-                    {
-                        f.Write(frameBytes);
-                    }
+                    f.Write(frameBytes);
                 }
             }
             else
             {
-                var frameBytes = GetBytesForFrameRowWise(_frames[SelectedFrame - 1].pixels);
-                if (exportOption == ExportOption.RawCpp)
-                    WriteFrameAsText(f, frameBytes);
-                else
-                    f.Write(frameBytes);
+                var frameBytes = GetBytesForFrame(SelectedFrame);
+                f.Write(frameBytes);
             }
-
-            if (exportOption == ExportOption.RawCpp)
-                f.Write(Encoding.ASCII.GetBytes(" };"));
-
             f.Close();
         }
 
@@ -304,32 +277,17 @@ namespace DotMatrixAnimationDesigner
         public ReadOnlySpan<byte> GetBytesForFrame(int frameNumber)
         {
             CopyActiveToBackingBuffer();
-            return GetBytesForFrameRowWise(_frames[frameNumber - 1].pixels);
+            var frameBytes = GetBytesForFrameRowWise(_frames[frameNumber - 1].pixels);
+            var frameLengthBytes = BitConverter.GetBytes((ushort)_frames[frameNumber - 1].frameTime);
+            var result = new byte[frameBytes.Length + frameLengthBytes.Length];
+            Buffer.BlockCopy(frameLengthBytes, 0, result, 0, frameLengthBytes.Length);
+            Buffer.BlockCopy(frameBytes, 0, result, frameLengthBytes.Length, frameBytes.Length);
+            return result;
         }
         #endregion
 
         #region Private methods
-        private void WriteFrameAsAsRawFunctionCallsOrCoordinates(FileStream f, bool asFunctionCalls)
-        {
-            var currentFrame = _frames[SelectedFrame - 1];
-            var hasRowAbove = false;
-            for (var i = 0; i < GridHeight; i++)
-            {
-                for (var j = 0; j < GridWidth; j++)
-                {
-                    if (currentFrame.pixels[ToGridIndex(j, i)])
-                    {
-                        if (hasRowAbove)
-                            f.Write(Encoding.ASCII.GetBytes("\n"));
-                        f.Write(Encoding.ASCII.GetBytes(
-                            asFunctionCalls ? GetPixelAsFunctionCall(i, j) : GetPixelAsCoordinate(i, j)));
-                        hasRowAbove = true;
-                    }
-                }
-            }
-        }
-
-        private ReadOnlySpan<byte> GetBytesForFrameRowWise(List<bool> dots)
+        private byte[] GetBytesForFrameRowWise(List<bool> dots)
         {
             var numberOfBytesPerRow = (int)Math.Ceiling(GridWidth / 8.0);
             var result = new byte[numberOfBytesPerRow * GridHeight];
@@ -361,25 +319,6 @@ namespace DotMatrixAnimationDesigner
             return result;
         }
 
-        private void WriteFrameAsText(FileStream fs, ReadOnlySpan<byte> frameBytes, bool lineBreakEveryRow = true)
-        {
-            StringBuilder sb = new();
-            var numberOfBytesPerRow = lineBreakEveryRow ? (int)Math.Ceiling(GridWidth / 8.0) : 0;
-            for (var j = 0; j < frameBytes.Length; j++)
-            {
-                sb.Append(GetByteAsText(frameBytes[j]));
-                if (j < frameBytes.Length - 1)
-                {
-                    if (lineBreakEveryRow && ((j + 1) % numberOfBytesPerRow == 0))
-                        sb.Append(",\n");
-                    else
-                        sb.Append(", ");
-                }
-            }
-
-            fs.Write(Encoding.ASCII.GetBytes(sb.ToString()));
-        }
-
         private void SetSelectedFrameToActive()
         {
             for (var i = 0; i < Dots.Count; i++)
@@ -395,13 +334,6 @@ namespace DotMatrixAnimationDesigner
 
         private int ToGridIndex(int x, int y)
             => x + (y * GridWidth);
-
-        private static string GetByteAsText(byte b)
-            => $"0x{b:x2}";
-        private static string GetPixelAsFunctionCall(int x, int y)
-            => $"m_screen->set_value_for_pixel({x}, {y}, Screen::PixelValue::CURRENT);";
-        private static string GetPixelAsCoordinate(int x, int y)
-            => $"({x}, {y})";
         #endregion
     }
 }

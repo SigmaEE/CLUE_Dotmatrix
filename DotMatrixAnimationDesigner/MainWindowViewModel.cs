@@ -22,14 +22,6 @@ namespace DotMatrixAnimationDesigner
         Down
     }
 
-    public enum ExportOption
-    {
-        Raw,
-        RawCpp,
-        Coordinates,
-        CppFunctionCalls
-    }
-
     public enum TransmitOption
     {
         AnimationFrames,
@@ -45,7 +37,6 @@ namespace DotMatrixAnimationDesigner
         private int _height = 16;
         private int _udpListenPort = 5578;
         private bool _isScanningNetwork = false;
-        private ExportOption _exportOption = ExportOption.Raw;
         private TransmitOption _transmitOption = TransmitOption.AnimationFrames;
         #endregion
 
@@ -73,18 +64,11 @@ namespace DotMatrixAnimationDesigner
             set => SetProperty(ref _isScanningNetwork, value);
         }
 
-        public ExportOption ExportOption
-        {
-            get => _exportOption;
-            set => SetProperty(ref _exportOption, value);
-        }
-
         public TransmitOption TransmitOption
         {
             get => _transmitOption;
             set => SetProperty(ref _transmitOption, value);
         }
-
 
         public DotMatrixContainer Container { get; }
 
@@ -233,6 +217,8 @@ namespace DotMatrixAnimationDesigner
         private readonly VistaSaveFileDialog _exportDialog = new()
         {
             AddExtension = true,
+            Filter = "Binary file (*.dat)|*.dat",
+            DefaultExt = "dat"
         };
 
         private readonly VistaOpenFileDialog _frameImportPathDialog = new()
@@ -290,22 +276,11 @@ namespace DotMatrixAnimationDesigner
 
         private void ExportFrames(bool onlyExportCurrent)
         {
-            var formatSupportsMultipleFrames = ExportOption == ExportOption.Raw || ExportOption == ExportOption.RawCpp;
-            var isCppFormat = ExportOption == ExportOption.RawCpp || ExportOption == ExportOption.CppFunctionCalls;
-
-            _exportDialog.Title = onlyExportCurrent ? "Export current frame" :
-                (formatSupportsMultipleFrames ? "Export all frames" : "Export current frame");
-
-            _exportDialog.Filter = ExportOption == ExportOption.Raw ? "Binary file (*.dat)|*.dat" :
-               (isCppFormat ? "C++ Source file (*.cpp)|*.cpp" : "Text file (*.txt|*.txt)");
-
-            _exportDialog.DefaultExt = ExportOption == ExportOption.Raw ? "dat" :
-                (isCppFormat ? "cpp" : "txt");
-
+            _exportDialog.Title = onlyExportCurrent ? "Export current frame" : "Export all frames";
             if (_exportDialog.ShowDialog() != true)
                 return;
 
-            Container.WriteCurrentContentToFile(_exportDialog.FileName, !onlyExportCurrent, ExportOption);
+            Container.WriteCurrentContentToFile(_exportDialog.FileName, !onlyExportCurrent);
         }
 
         private void ScanNetwork()
