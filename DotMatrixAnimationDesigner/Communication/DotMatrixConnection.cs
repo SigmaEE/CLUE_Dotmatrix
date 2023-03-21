@@ -22,10 +22,11 @@ namespace DotMatrixAnimationDesigner.Communication
     public enum ResponseCode : byte
     {
         Ok = 0x01,
-        TargetBusy = 0x02,
+        TargetInternalError = 0x02,
         ChecksumMismatch = 0x03,
-        TimeoutTarget = 0x04,
-        UnexpectedResponse = 0x05,
+        TargetTimeout = 0x04,
+        TargetUnexpectedResponse = 0x05,
+        TargetUnexpectedPacket = 0x06,
         TimeoutAccessPoint = 0xff
     }
 
@@ -75,7 +76,7 @@ namespace DotMatrixAnimationDesigner.Communication
         private readonly Timer _clearTransmissionMessageProgressTimer;
         private const int CheckConnectionAliveIntervalMs = 20000;
         private const ushort Crc16Polynomial = 0x1021;
-        private const int ResponseTimeoutMs = 3000;
+        private const int ResponseTimeoutMs = 5000;
         private const byte AnimationFrameMessageIdentifier = 0x10;
         private const byte GameOfLifeConfigIdentifier = 0x11;
 
@@ -167,11 +168,12 @@ namespace DotMatrixAnimationDesigner.Communication
 
             Status = ConnectionStatus.Sending;
             TransmissionProgressMessage = "Transmitting AnimationFrames header...";
-            var startFrameNumber = transmitOnlyCurrent ? container.SelectedFrame : 0;
+            var startFrameNumber = transmitOnlyCurrent ? container.SelectedFrame : 1;
             var endFrameNumber = transmitOnlyCurrent ? container.SelectedFrame : container.TotalNumberOfFrames;
-            var numberOfFramesToTransmit = (endFrameNumber - startFrameNumber) + 1;
-
-            if (!SendHeaderAndAwaitResponse(_client, GetHeaderForAnimationFramesTransmission(numberOfFramesToTransmit)))
+            var numberOfFramesToTransmit = endFrameNumber - startFrameNumber + 1;
+            var numberOfBytesPerFrame = container.GetBytesForFrame(startFrameNumber).Length;
+            var transmissionHeader = GetHeaderForAnimationFramesTransmission(numberOfFramesToTransmit, numberOfBytesPerFrame, container.GridHeight, container.GridWidth);
+            if (!SendHeaderAndAwaitResponse(_client, transmissionHeader))
                 return;
 
             var frameCounter = 0;
@@ -179,7 +181,8 @@ namespace DotMatrixAnimationDesigner.Communication
             for (var i = startFrameNumber; i <= endFrameNumber; i++)
             {
                 TransmissionProgressMessage = $"[Frame {frameCounter + 1}/{numberOfFramesToTransmit}] {(checksumMismatch ? "Checksum mismatch, sending again" : "Sending")}...";
-                _client.Client.Send(GetMessage(container.GetBytesForFrame(i), frameCounter));
+                var message = GetMessage(container.GetBytesForFrame(i));
+                _client.Client.Send(message);
                 TransmissionProgressMessage = $"[Frame {frameCounter + 1}/{numberOfFramesToTransmit}] Awaiting response...";
 
                 var responseCode = GetResponseCodeFromClient(_client);
@@ -212,6 +215,7 @@ namespace DotMatrixAnimationDesigner.Communication
             TransmissionProgressMessage = "Transmitting GameOfLifeConfig header...";
             if (!SendHeaderAndAwaitResponse(_client, GetHeaderForGameOfLifeConfigTransmission()))
                 return;
+
             var checksumMismatch = false;
             while (true)
             {
@@ -276,37 +280,36 @@ namespace DotMatrixAnimationDesigner.Communication
             _clearTransmissionMessageProgressTimer.Change(5000, Timeout.Infinite);
         }
 
-        private static ReadOnlySpan<byte> GetHeaderForAnimationFramesTransmission(int numberOfFrames)
+        private static ReadOnlySpan<byte> GetHeaderForAnimationFramesTransmission(int numberOfFrames, int numberOfBytesPerFrame, int numberOfRows, int numberOfColumns)
         {
-            var result = new byte[3];
+            var result = new byte[1 + 2 + 2 + 1 + 1];
             result[0] = AnimationFrameMessageIdentifier;
             var numberOfFramesBuffer = BitConverter.GetBytes((ushort)numberOfFrames);
+            var numberOfBytesPerFrameBuffer = BitConverter.GetBytes((ushort)numberOfBytesPerFrame);
+
             Buffer.BlockCopy(numberOfFramesBuffer, 0, result, 1, numberOfFramesBuffer.Length);
+            Buffer.BlockCopy(numberOfBytesPerFrameBuffer, 0, result, 3, numberOfBytesPerFrameBuffer.Length);
+            result[5] = (byte)numberOfRows;
+            result[6] = (byte)numberOfColumns;
+
             return result;
         }
 
         private static ReadOnlySpan<byte> GetHeaderForGameOfLifeConfigTransmission()
             => new(new byte[] { GameOfLifeConfigIdentifier });
 
-        private static ReadOnlySpan<byte> GetMessage(ReadOnlySpan<byte> payloadBytes, int frameNumber = -1)
+        private static ReadOnlySpan<byte> GetMessage(ReadOnlySpan<byte> payloadBytes)
         {
             var payloadLength = (ushort)payloadBytes.Length;
             var crc = ComputeCrc16Checksum(payloadBytes);
-            var includeFrameNumber = frameNumber > -1;
 
-            // Header is optionally frame number + payloadLength + crc
-            var message = new byte[(includeFrameNumber ? 2 : 0) + 2 + 2 + payloadLength];
-            var idx = 0;
-            if (includeFrameNumber)
-            {
-                message[idx++] = (byte)((ushort)frameNumber & 0x00ff);
-                message[idx++] = (byte)(((ushort)frameNumber & 0xff00) >> 8);
-            }
-            message[idx++] = (byte)(crc & 0xff);
-            message[idx++] = (byte)((crc >> 8) & 0xff);
-            message[idx++] = (byte)(payloadLength & 0xff);
-            message[idx++] = (byte)((payloadLength >> 8) & 0xff);
-            Buffer.BlockCopy(payloadBytes.ToArray(), 0, message, idx, payloadLength);
+            // Header is payloadLength + crc
+            var message = new byte[2 + 2 + payloadLength];
+            message[0] = (byte)(crc & 0xff);
+            message[1] = (byte)((crc >> 8) & 0xff);
+            message[2] = (byte)(payloadLength & 0xff);
+            message[3] = (byte)((payloadLength >> 8) & 0xff);
+            Buffer.BlockCopy(payloadBytes.ToArray(), 0, message, 4, payloadLength);
 
             return message;
         }
@@ -321,7 +324,7 @@ namespace DotMatrixAnimationDesigner.Communication
                 if (numberOfReceivedBytes == 1 && TryGetAsResponseCode(buffer[0], out var responseCode))
                     return responseCode;
                 else
-                    return ResponseCode.UnexpectedResponse;
+                    return ResponseCode.TargetUnexpectedPacket;
             }
             catch (SocketException)
             {
@@ -344,7 +347,7 @@ namespace DotMatrixAnimationDesigner.Communication
             }
             else
             {
-                responseCode = ResponseCode.UnexpectedResponse;
+                responseCode = ResponseCode.TargetUnexpectedPacket;
                 return false;
             }
         }

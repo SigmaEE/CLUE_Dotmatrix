@@ -608,6 +608,9 @@
                                 <Setter Property="IsEnabled" Value="True" />
                                 <Setter Property="ToolTip" Value="" />
                                 <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Path=Connection.Status}" Value="{x:Static communication:ConnectionStatus.Connected}">
+                                        <Setter Property="ToolTip" Value="Press to send all frames to target pin matrix [Alt + S]" />
+                                    </DataTrigger>
                                     <DataTrigger Binding="{Binding Path=TransmitOption}" Value="{x:Static local:TransmitOption.GameOfLifeConfig}">
                                         <Setter Property="IsEnabled" Value="False" />
                                         <Setter Property="ToolTip" Value="GameOfLifeConfig transmit format does not support multiple frames" />
@@ -616,11 +619,8 @@
                                         <Setter Property="IsEnabled" Value="False" />
                                         <Setter Property="ToolTip" Value="Cannot send multiple frames - there is only one" />
                                     </DataTrigger>
-                                    <DataTrigger Binding="{Binding Path=Connection.Status}" Value="{x:Static communication:ConnectionStatus.Connected}">
-                                        <Setter Property="IsEnabled" Value="True" />
-                                        <Setter Property="ToolTip" Value="Press to send all frames to target pin matrix [Alt + S]" />
-                                    </DataTrigger>
                                     <DataTrigger Binding="{Binding Path=Connection.Status}" Value="{x:Static communication:ConnectionStatus.Sending}">
+                                        <Setter Property="IsEnabled" Value="False" />
                                         <Setter Property="ToolTip" Value="Sending..." />
                                     </DataTrigger>
                                 </Style.Triggers>
