@@ -2,14 +2,13 @@
 
 #include <stdint.h>
 #include "Screen.h"
+#include "Messages.h"
 
 class Animator {
 public:
-  enum class Animation {
-    LETTERS_TEST
-  };
+  Animator(Screen*);
 
-  Animator(Screen*, Animator::Animation, uint8_t);
+  void init(AnimationFramesMessage* animation);
 
   void tick_animation();
 
@@ -17,7 +16,8 @@ public:
 
 private:
   Screen* m_screen;
-  uint8_t* m_animation;
+  AnimationFramesMessage* m_animation;
+
   bool m_is_done;
   uint8_t m_number_of_repeats;
   uint8_t m_animation_counter;
@@ -29,7 +29,4 @@ private:
   
   uint8_t m_number_of_bytes_per_row;
   uint8_t m_number_of_bytes_per_frame;
-
-  const static uint8_t frame_data_header_length;
-  const static uint8_t LETTERS_TEST_ANIMATION[];
 };

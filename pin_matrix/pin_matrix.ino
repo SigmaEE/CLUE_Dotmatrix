@@ -186,8 +186,9 @@ void setup() {
 
   if (!rtc.GetIsRunning())
       rtc.SetIsRunning(true);
-  
+
   RtcDateTime now = rtc.GetDateTime();
+
   if (now < program_compiled_timestamp) 
     rtc.SetDateTime(program_compiled_timestamp);
   else if ((now.TotalSeconds() - program_compiled_timestamp.TotalSeconds()) > 10)
@@ -195,11 +196,11 @@ void setup() {
 
   if (!rtc.GetIsWriteProtected()) 
     rtc.SetIsWriteProtected(true);
-
 #if DEBUG
-  Serial.begin(9600);
+  Serial.begin(115200);
 #endif
 
+  Serial1.begin(115200);
   screen.clear(true);
   update_screen();
 }
@@ -226,14 +227,12 @@ void loop() {
   static uint8_t last_minute, last_second, last_hour, x_origin;
   static char time_string[8];
   static char date_string[30]; // Longest possible date should be a Wednesday in September
-  static GameOfLife game_of_life(&screen, GameOfLife::starting_configuration::SEED_1);
-  static Animator animator(&screen, Animator::Animation::LETTERS_TEST, 1);
 
-  while (!animator.is_done() && first) {
-    animator.tick_animation();
-    update_screen();
-  }
-  RtcDateTime now = rtc.GetDateTime();
+  static RtcDateTime now;
+  static SerialCommunicator communicator(Serial1);
+  static Animator animator(&screen);
+
+  //static GameOfLife game_of_life(&screen, GameOfLife::starting_configuration::SEED_1);
 
   // game_of_life.init();
   // while(true) {
@@ -241,6 +240,8 @@ void loop() {
   //   update_screen();
   //   delay(100);
   // }
+
+  now = rtc.GetDateTime();
 
   if (!now.IsValid())
     scroll_text("COULD NOT GET TIME - RESTART PLEASE");
@@ -272,5 +273,21 @@ void loop() {
     last_hour = now.Hour();
   }
 
-  delay(100);
+  if (communicator.try_read_header()) {
+    SerialCommunicator::ReadResult read_result = communicator.read_message();
+    if (read_result == SerialCommunicator::ReadResult::Ok) {
+      if (communicator.get_current_message()->get_type() == Message::Type::AnimationFrames) {
+        AnimationFramesMessage* msg = static_cast<AnimationFramesMessage*>(communicator.get_current_message());
+        animator.init(msg);
+        while(!animator.is_done()) {
+          animator.tick_animation();
+          update_screen();
+        }
+      }
+      communicator.flush_message();
+    }
+  }
+  else {
+    delay(100);
+  }
 }
