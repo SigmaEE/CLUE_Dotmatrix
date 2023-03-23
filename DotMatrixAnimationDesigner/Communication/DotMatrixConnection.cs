@@ -3,8 +3,8 @@ using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 using System.Security;
-using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace DotMatrixAnimationDesigner.Communication
@@ -74,11 +74,8 @@ namespace DotMatrixAnimationDesigner.Communication
 
         private readonly Timer _checkConnectionAliveTimer;
         private readonly Timer _clearTransmissionMessageProgressTimer;
-        private const int CheckConnectionAliveIntervalMs = 20000;
-        private const ushort Crc16Polynomial = 0x1021;
+        private const int CheckConnectionAliveIntervalMs = 10000;
         private const int ResponseTimeoutMs = 5000;
-        private const byte AnimationFrameMessageIdentifier = 0x10;
-        private const byte GameOfLifeConfigIdentifier = 0x11;
 
         private static readonly Dictionary<byte, ResponseCode> s_responseCodeMap = new();
         #endregion
@@ -87,8 +84,6 @@ namespace DotMatrixAnimationDesigner.Communication
         {
             _checkConnectionAliveTimer = new((s) => IsConnectionStillAlive(), null, Timeout.Infinite, Timeout.Infinite);
             _clearTransmissionMessageProgressTimer = new((s) => TransmissionProgressMessage = string.Empty, null, Timeout.Infinite, Timeout.Infinite);
-
-            var crc = ComputeCrc16Checksum(Encoding.ASCII.GetBytes("123456789"));
         }
 
         #region Public methods
@@ -99,7 +94,7 @@ namespace DotMatrixAnimationDesigner.Communication
             ConnectionString = $"{ipAddress.MapToIPv4()}:{port}";
         }
 
-        public void TryConnect()
+        public async Task TryConnect(int timeoutMs)
         {
             if (_ipAddress == null)
             {
@@ -110,25 +105,30 @@ namespace DotMatrixAnimationDesigner.Communication
 
             Status = ConnectionStatus.Connecting;
             _client = new(AddressFamily.InterNetwork);
+
             LastConnectionErrorMessage = string.Empty;
+            CancellationTokenSource cts = new();
+            cts.CancelAfter(timeoutMs);
 
             try
             {
-                var didReturnNormally = _client.ConnectAsync(_ipAddress, _port).Wait(3000);
+                await _client.ConnectAsync(_ipAddress, _port, cts.Token);
                 if (_client.Connected)
                     _client.Client.LingerState = new LingerOption(false, 0);
                 else
-                    LastConnectionErrorMessage = $"Connection to {ConnectionString} {(didReturnNormally ? "failed" : "timed-out")}";
+                    LastConnectionErrorMessage = $"Connection to {ConnectionString} failed";
             }
             catch (Exception e) when (e is ArgumentNullException ||
                                         e is SocketException ||
                                         e is ObjectDisposedException ||
                                         e is SecurityException ||
-                                        e is InvalidOperationException)
+                                        e is InvalidOperationException ||
+                                        e is OperationCanceledException)
             {
-                LastConnectionErrorMessage = $"{e.GetType()}: {e.Message}";
+                LastConnectionErrorMessage = cts.IsCancellationRequested ? $"Connection to {ConnectionString} timed-out" : $"{e.GetType()}: {e.Message}";
             }
 
+            cts.Dispose();
             Status = string.IsNullOrEmpty(LastConnectionErrorMessage) ? ConnectionStatus.Connected : ConnectionStatus.ConnectionFailed;
             if (Status == ConnectionStatus.Connected)
             {
@@ -149,8 +149,7 @@ namespace DotMatrixAnimationDesigner.Communication
                 {
                     try
                     {
-                        _client.Client.Disconnect(reuseSocket: false);
-                        _client.Client.Close();
+                        _client.Close();
                     }
                     catch (SocketException) { }
                     _client.Dispose();
@@ -161,82 +160,41 @@ namespace DotMatrixAnimationDesigner.Communication
             }
         }
 
-        public void TransmitRawFrames(DotMatrixContainer container, bool transmitOnlyCurrent)
+        public void Transmit(DotMatrixContainer container, TransmitOption transmitOption, bool transmitOnlyCurrent)
         {
             if (_client == default || !_client.Connected)
                 return;
 
             Status = ConnectionStatus.Sending;
-            TransmissionProgressMessage = "Transmitting AnimationFrames header...";
-            var startFrameNumber = transmitOnlyCurrent ? container.SelectedFrame : 1;
-            var endFrameNumber = transmitOnlyCurrent ? container.SelectedFrame : container.TotalNumberOfFrames;
-            var numberOfFramesToTransmit = endFrameNumber - startFrameNumber + 1;
-            var numberOfBytesPerFrame = container.GetBytesForFrame(startFrameNumber).Length;
-            var transmissionHeader = GetHeaderForAnimationFramesTransmission(numberOfFramesToTransmit, numberOfBytesPerFrame, container.GridHeight, container.GridWidth);
-            if (!SendHeaderAndAwaitResponse(_client, transmissionHeader))
+            TransmissionProgressMessage = $"Transmitting {transmitOption} header...";
+
+            DotMatrixMessage msg = transmitOption switch
+            {
+                TransmitOption.AnimationFrames => AnimationFramesMessage.Get(container, transmitOnlyCurrent),
+                TransmitOption.GameOfLifeConfig => GameOfLifeConfigMesssage.Get(container),
+                _ => throw new NotImplementedException(),
+            };
+
+            var responseCode = SendAndAwaitResponse(_client, msg.GetTransmissionHeader());
+            if (responseCode != ResponseCode.Ok)
                 return;
 
-            var frameCounter = 0;
-            var checksumMismatch = false;
-            for (var i = startFrameNumber; i <= endFrameNumber; i++)
+            for (var i = 0; i < msg.NumberOfPackets; i++)
             {
-                TransmissionProgressMessage = $"[Frame {frameCounter + 1}/{numberOfFramesToTransmit}] {(checksumMismatch ? "Checksum mismatch, sending again" : "Sending")}...";
-                var message = GetMessage(container.GetBytesForFrame(i));
-                _client.Client.Send(message);
-                TransmissionProgressMessage = $"[Frame {frameCounter + 1}/{numberOfFramesToTransmit}] Awaiting response...";
-
-                var responseCode = GetResponseCodeFromClient(_client);
+                responseCode = SendAndAwaitResponse(_client, msg.GetPacket(i), $"Frame {i + 1}/{msg.NumberOfPackets}");
                 if (responseCode == ResponseCode.ChecksumMismatch)
                 {
-                    checksumMismatch = true;
                     i--;
                     continue;
                 }
                 else if (responseCode != ResponseCode.Ok)
                 {
-                    TransmissionProgressMessage = $"Transmission failed, got '{responseCode}' response";
-                    ResetConnectionStatusAndSetClearMessageTimer();
                     return;
                 }
-
-                checksumMismatch = false;
             }
 
             TransmissionProgressMessage = "Successfully transmitted all data";
             ResetConnectionStatusAndSetClearMessageTimer();
-        }
-
-        public void TransmitGameOfLifeConfig(DotMatrixContainer container)
-        {
-            if (_client == default || !_client.Connected)
-                return;
-
-            Status = ConnectionStatus.Sending;
-            TransmissionProgressMessage = "Transmitting GameOfLifeConfig header...";
-            if (!SendHeaderAndAwaitResponse(_client, GetHeaderForGameOfLifeConfigTransmission()))
-                return;
-
-            var checksumMismatch = false;
-            while (true)
-            {
-                TransmissionProgressMessage = checksumMismatch ? "Checksum mismatch, sending again..." : "Sending GameOfLife data to target...";
-                _client.Client.Send(GetMessage(container.GetBytesForFrameAsCoordinates(container.SelectedFrame)));
-                TransmissionProgressMessage = "Awaiting response...";
-
-                var responseCode = GetResponseCodeFromClient(_client);
-                if (responseCode == ResponseCode.ChecksumMismatch)
-                {
-                    checksumMismatch = true;
-                    continue;
-                }
-
-                if (responseCode != ResponseCode.Ok)
-                    TransmissionProgressMessage = $"Transmission failed, got '{responseCode}' response";
-                else
-                    TransmissionProgressMessage = "Successfully transmitted all data";
-                ResetConnectionStatusAndSetClearMessageTimer();
-                break;
-            }
         }
         #endregion
 
@@ -246,71 +204,46 @@ namespace DotMatrixAnimationDesigner.Communication
             if (Status == ConnectionStatus.Sending)
                 return;
 
-            var connectionDisconnect = false;
-            var bytesAvailable = false;
-            if (_client != null && _client.Client.Connected)
-            {
-                connectionDisconnect = _client.Client.Poll(1000, SelectMode.SelectRead);
-                bytesAvailable = (_client.Client.Available == 0);
-            }
+            var shouldDisconnect = true;
+            if (_client != null && _client.Connected)
+                shouldDisconnect = SendAndAwaitResponse(_client, new ConnectionAlivePingMessage().GetTransmissionHeader(), suppressOutput: true) != ResponseCode.Ok;
 
-            if ((connectionDisconnect && bytesAvailable) || (_client != null && !_client.Client.Connected))
+            if (shouldDisconnect)
                 Disconnect();
             else
                 _checkConnectionAliveTimer.Change(CheckConnectionAliveIntervalMs, Timeout.Infinite);
         }
 
-        private bool SendHeaderAndAwaitResponse(TcpClient client, ReadOnlySpan<byte> header)
+        private ResponseCode SendAndAwaitResponse(TcpClient client, ReadOnlySpan<byte> data, string statusPrefix = "", bool suppressOutput = false)
         {
-            client.Client.Send(header);
-            TransmissionProgressMessage = "Awaiting response...";
+            statusPrefix = string.IsNullOrEmpty(statusPrefix) ? "" : $"[{statusPrefix}] ";
+            try
+            {
+                client.Client.Send(data);
+            }
+            catch (SocketException e)
+            {
+                TransmissionProgressMessage = $"{statusPrefix}Transmission failed, got SocketException {e.ErrorCode} ({e.Message})";
+                return ResponseCode.TimeoutAccessPoint;
+            }
+
+            if (!suppressOutput)
+                TransmissionProgressMessage = $"{statusPrefix}Awaiting response...";
+
             var responseCode = GetResponseCodeFromClient(client);
             if (responseCode != ResponseCode.Ok)
             {
-                TransmissionProgressMessage = $"Transmission failed, got '{responseCode}' response";
+                if (!suppressOutput)
+                    TransmissionProgressMessage = $"{statusPrefix}Transmission failed, got '{responseCode}' response";
                 ResetConnectionStatusAndSetClearMessageTimer();
             }
-            return responseCode == ResponseCode.Ok;
+            return responseCode;
         }
 
         private void ResetConnectionStatusAndSetClearMessageTimer()
         {
             Status = ConnectionStatus.Connected;
             _clearTransmissionMessageProgressTimer.Change(5000, Timeout.Infinite);
-        }
-
-        private static ReadOnlySpan<byte> GetHeaderForAnimationFramesTransmission(int numberOfFrames, int numberOfBytesPerFrame, int numberOfRows, int numberOfColumns)
-        {
-            var result = new byte[1 + 2 + 2 + 1 + 1];
-            result[0] = AnimationFrameMessageIdentifier;
-            var numberOfFramesBuffer = BitConverter.GetBytes((ushort)numberOfFrames);
-            var numberOfBytesPerFrameBuffer = BitConverter.GetBytes((ushort)numberOfBytesPerFrame);
-
-            Buffer.BlockCopy(numberOfFramesBuffer, 0, result, 1, numberOfFramesBuffer.Length);
-            Buffer.BlockCopy(numberOfBytesPerFrameBuffer, 0, result, 3, numberOfBytesPerFrameBuffer.Length);
-            result[5] = (byte)numberOfRows;
-            result[6] = (byte)numberOfColumns;
-
-            return result;
-        }
-
-        private static ReadOnlySpan<byte> GetHeaderForGameOfLifeConfigTransmission()
-            => new(new byte[] { GameOfLifeConfigIdentifier });
-
-        private static ReadOnlySpan<byte> GetMessage(ReadOnlySpan<byte> payloadBytes)
-        {
-            var payloadLength = (ushort)payloadBytes.Length;
-            var crc = ComputeCrc16Checksum(payloadBytes);
-
-            // Header is payloadLength + crc
-            var message = new byte[2 + 2 + payloadLength];
-            message[0] = (byte)(crc & 0xff);
-            message[1] = (byte)((crc >> 8) & 0xff);
-            message[2] = (byte)(payloadLength & 0xff);
-            message[3] = (byte)((payloadLength >> 8) & 0xff);
-            Buffer.BlockCopy(payloadBytes.ToArray(), 0, message, 4, payloadLength);
-
-            return message;
         }
 
         private static ResponseCode GetResponseCodeFromClient(TcpClient client)
@@ -349,26 +282,6 @@ namespace DotMatrixAnimationDesigner.Communication
                 responseCode = ResponseCode.TargetUnexpectedPacket;
                 return false;
             }
-        }
-
-        private static ushort ComputeCrc16Checksum(ReadOnlySpan<byte> bytes)
-        {
-            // See https://en.wikipedia.org/wiki/Computation_of_cyclic_redundancy_checks
-            ushort crc = 0xffff;
-            var i = 0;
-            while (i < bytes.Length)
-            {
-                crc ^= (ushort)(bytes[i] << 8);
-                for (var j = 0; j < 8; j++)
-                {
-                    if ((crc & 0x8000) > 0)
-                        crc = (ushort)((ushort)(crc << 1) ^ Crc16Polynomial);
-                    else
-                        crc = (ushort)(crc << 1);
-                }
-                i++;
-            }
-            return crc;
         }
         #endregion
 

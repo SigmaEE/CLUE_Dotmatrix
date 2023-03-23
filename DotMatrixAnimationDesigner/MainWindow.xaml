@@ -203,7 +203,7 @@
                                             <Setter Property="Foreground" Value="{StaticResource MainInfoColor}" />
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding Path=Connection.Status}" Value="{x:Static communication:ConnectionStatus.ConnectionFailed}">
-                                            <Setter Property="Text" Value="{Binding Path=Connection.ConnectionString, StringFormat={}Connected to {0}}" />
+                                            <Setter Property="Text" Value="{Binding Path=Connection.ConnectionString, StringFormat={}Connection to {0} failed}" />
                                             <Setter Property="ToolTip" Value="{Binding Path=Connection.LastConnectionErrorMessage}" />
                                             <Setter Property="Foreground" Value="{StaticResource MainErrorColor}" />
                                         </DataTrigger>
@@ -570,12 +570,15 @@
                                         <Setter Property="ToolTip" Value="Press to send all frames to target pin matrix [Alt + S]" />
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding Path=TransmitOption}" Value="{x:Static local:TransmitOption.GameOfLifeConfig}">
+                                        <Setter Property="IsEnabled" Value="False" />
                                         <Setter Property="ToolTip" Value="GameOfLifeConfig transmit format does not support multiple frames" />
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding Path=Container.TotalNumberOfFrames}" Value="1">
+                                        <Setter Property="IsEnabled" Value="False" />
                                         <Setter Property="ToolTip" Value="Cannot send multiple frames - there is only one" />
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding Path=Connection.Status}" Value="{x:Static communication:ConnectionStatus.Sending}">
+                                        <Setter Property="IsEnabled" Value="False" />
                                         <Setter Property="ToolTip" Value="Sending..." />
                                     </DataTrigger>
                                 </Style.Triggers>
@@ -583,7 +586,6 @@
                         </Button.Style>
                     </Button>
                 </StackPanel>
-                
             </StackPanel>
         </Grid>
 
@@ -613,6 +615,53 @@
                 <ColumnDefinition Width="3*" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0"
+                        HorizontalAlignment="Left"
+                        Orientation="Horizontal"
+                        Margin="10,10,0,0">
+
+                <TextBlock  Text="Animation repeats:"
+                            Margin="0,0,10,0"
+                           VerticalAlignment="Center">
+                    <TextBlock.Style>
+                        <Style TargetType="{x:Type TextBlock}" BasedOn="{StaticResource MainTextBlockStyle}">
+                            <Setter Property="Foreground" Value="{StaticResource MainTextColor}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Path=TransmitOption}" Value="{x:Static local:TransmitOption.GameOfLifeConfig}">
+                                    <Setter Property="Foreground" Value="{StaticResource MainTextMutedColor}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+                <TextBox>
+                    <TextBox.Style>
+                        <Style TargetType="{x:Type TextBox}" BasedOn="{StaticResource widthAndHeightInputBox}">
+                            <Setter Property="ToolTip" Value="The number of times to repeat the current animation. A value of 0 means 'repeat indefinitely'." />
+                            <Setter Property="Margin" Value="0,0,0,10" />
+                            <Setter Property="Height" Value="20" />
+                            <Setter Property="VerticalAlignment" Value="Center" />
+                            <Setter Property="IsEnabled" Value="True" />
+                            <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Path=TransmitOption}" Value="{x:Static local:TransmitOption.GameOfLifeConfig}">
+                                    <Setter Property="ToolTip" Value="Animation repeats is not relevant for GameOfLife configurations" />
+                                    <Setter Property="IsEnabled" Value="False" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBox.Style>
+                    <TextBox.Text>
+                        <Binding Path="Container.NumberOfAnimationRepeats" UpdateSourceTrigger="PropertyChanged" >
+                            <Binding.ValidationRules>
+                                <components:RangeValidationRule MinExclusive="-1"
+                                                                MaxInclusive="255" />
+                            </Binding.ValidationRules>
+                        </Binding>
+                    </TextBox.Text>
+                </TextBox>
+            </StackPanel>
 
             <StackPanel Grid.Column="1"
                         Orientation="Horizontal"
@@ -700,16 +749,6 @@
                         HorizontalAlignment="Right"
                         Orientation="Horizontal"
                         Margin="0,10,0,0">
-                <StackPanel.Style>
-                    <Style TargetType="{x:Type StackPanel}">
-                        <Setter Property="Visibility" Value="Visible" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding Path=Container.TotalNumberOfFrames}" Value="1">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </StackPanel.Style>
 
                 <TextBlock Style="{StaticResource MainTextBlockStyle}"
                             Text="Frame length:"
@@ -718,7 +757,7 @@
                 <TextBox>
                     <TextBox.Style>
                         <Style TargetType="{x:Type TextBox}" BasedOn="{StaticResource widthAndHeightInputBox}">
-                            <Setter Property="ToolTip" Value="The amount of time to show this frame. A value of 0 means as short as possible" />
+                            <Setter Property="ToolTip" Value="The amount of time to show this frame. A value of 0 means 'as short as possible'." />
                             <Setter Property="Margin" Value="0,0,0,10" />
                             <Setter Property="Height" Value="20" />
                             <Setter Property="VerticalAlignment" Value="Center" />

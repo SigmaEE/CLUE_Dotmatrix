@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
@@ -190,7 +191,7 @@ namespace DotMatrixAnimationDesigner
         {
             get
             {
-                _connectOrDisconnectToPinMatrixCommand ??= new RelayCommand(ConnectOrDisconnect);
+                _connectOrDisconnectToPinMatrixCommand ??= new RelayCommand(async () => await ConnectOrDisconnect());
                 return _connectOrDisconnectToPinMatrixCommand;
             }
         }
@@ -289,15 +290,12 @@ namespace DotMatrixAnimationDesigner
             Task.Run(() => UdpListener.StartUdpBroadcastListen(SelectedNetworkInterface, UdpListenPort));
         }
 
-        private void ConnectOrDisconnect()
+        private async Task ConnectOrDisconnect()
         {
-            Task.Run(() =>
-            {
-                if (Connection.Status != ConnectionStatus.Connected)
-                    Connection.TryConnect();
-                else
-                    Connection.Disconnect();
-            });
+            if (Connection.Status != ConnectionStatus.Connected)
+                await Connection.TryConnect(3000);
+            else
+                Connection.Disconnect();
         }
 
         private void TransmitFrames(bool onlyIncludeCurrent)
@@ -305,13 +303,7 @@ namespace DotMatrixAnimationDesigner
             if (Connection.Status != ConnectionStatus.Connected)
                 return;
 
-            Task.Run(() =>
-            {
-                if (TransmitOption == TransmitOption.AnimationFrames)
-                    Connection.TransmitRawFrames(Container, onlyIncludeCurrent);
-                else if (TransmitOption == TransmitOption.GameOfLifeConfig)
-                    Connection.TransmitGameOfLifeConfig(Container);
-            });
+            Task.Run(() => Connection.Transmit(Container, TransmitOption, onlyIncludeCurrent));
         }
 
         private static List<IPAddress> FetchLocalIpv4Addresses()

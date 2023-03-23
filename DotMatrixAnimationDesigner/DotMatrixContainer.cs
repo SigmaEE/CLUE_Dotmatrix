@@ -12,6 +12,7 @@ namespace DotMatrixAnimationDesigner
 
         #region Backing fields
         private int _totalNumberOfFrames = 1;
+        private int _numberOfAnimationRepeats = 0;
         private int _selectedFrame;
         private int _selectedFrameTime = 0;
         private int _gridWidth;
@@ -22,6 +23,12 @@ namespace DotMatrixAnimationDesigner
         {
             get => _totalNumberOfFrames;
             set => SetProperty(ref _totalNumberOfFrames, value);
+        }
+
+        public int NumberOfAnimationRepeats
+        {
+            get => _numberOfAnimationRepeats;
+            set => SetProperty(ref _numberOfAnimationRepeats, value);
         }
 
         public int SelectedFrame
@@ -241,12 +248,16 @@ namespace DotMatrixAnimationDesigner
             {
                 for (var i = 0; i < TotalNumberOfFrames; i++)
                 {
+                    var frameTime = GetFrameLengthForFrame(i + 1);
+                    f.Write(BitConverter.GetBytes(frameTime));
                     var frameBytes = GetBytesForFrame(i + 1);
                     f.Write(frameBytes);
                 }
             }
             else
             {
+                var frameTime = GetFrameLengthForFrame(SelectedFrame);
+                f.Write(BitConverter.GetBytes(frameTime));
                 var frameBytes = GetBytesForFrame(SelectedFrame);
                 f.Write(frameBytes);
             }
@@ -276,15 +287,16 @@ namespace DotMatrixAnimationDesigner
 
         }
 
+        public ushort GetFrameLengthForFrame(int frameNumber)
+        {
+            CopyActiveToBackingBuffer();
+            return (ushort)_frames[frameNumber - 1].frameTime;
+        }
+
         public ReadOnlySpan<byte> GetBytesForFrame(int frameNumber)
         {
             CopyActiveToBackingBuffer();
-            var frameBytes = GetBytesForFrameRowWise(_frames[frameNumber - 1].pixels);
-            var frameLengthBytes = BitConverter.GetBytes((ushort)_frames[frameNumber - 1].frameTime);
-            var result = new byte[frameBytes.Length + frameLengthBytes.Length];
-            Buffer.BlockCopy(frameLengthBytes, 0, result, 0, frameLengthBytes.Length);
-            Buffer.BlockCopy(frameBytes, 0, result, frameLengthBytes.Length, frameBytes.Length);
-            return result;
+            return GetBytesForFrameRowWise(_frames[frameNumber - 1].pixels);
         }
         #endregion
 
