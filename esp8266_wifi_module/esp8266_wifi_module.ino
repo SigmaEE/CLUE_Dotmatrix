@@ -13,18 +13,15 @@
   #define DEBUG_PRINTF(x, ...)
 #endif
 
-IPAddress gateway(192, 168, 4, 1);
-IPAddress local_ip_address(192, 168, 4, 2);
-IPAddress udp_broadcast_address(192, 168, 4, 255);
-IPAddress net_mask(255, 255, 255, 0);
-
 const uint16_t udp_broadcast_port = 5578;
 const uint16_t server_port = 8467;
 const uint16_t crc16_polynomial = 0x1021;
-const uint8_t transmission_start_identifier_length = 1;
+const uint8_t transmission_header_number_of_bytes = 3;
+const uint8_t packet_header_number_of_bytes = 4;
+const uint8_t connection_ping_id = 0xff;
 
-const uint8_t animation_frames_message_identifier = 0x10;
-const uint8_t game_of_life_config_message_identifier = 0x11;
+const char* ssid = "sigma-guest";
+const char* password = "starforlife2005";
 
 enum response_code {
   RESPONSE_OK = 0x01,
@@ -35,41 +32,38 @@ enum response_code {
   RESPONSE_UNEXPECTED = 0x06
 };
 
-WiFiUDP udp;
-WiFiServer server(local_ip_address, server_port);
-
 void setup() {
   Serial.begin(115200);
   Serial.setTimeout(3000);
 
-  DEBUG_PRINTLN("Setting up device as access point...");  
-  bool result = WiFi.softAPConfig(local_ip_address, gateway, net_mask);
-  if (!result) {
-    DEBUG_PRINTLN("Could not configure network parameters! This is unexpected");
+  if (!WiFi.mode(WIFI_STA)){
+    DEBUG_PRINTLN("Could not set module to WiFi Station mode! This is unexpected");
     return;
   }
 
-  result = WiFi.softAP("PinMatrixNetwork", "flipthedot");
-
-  if (result) {
-    DEBUG_PRINTLN("Network configured, access point live");
-    DEBUG_PRINT("Local IP address: ");
-    DEBUG_PRINTLN(WiFi.softAPIP());
-  }
-  else {
-    DEBUG_PRINTLN("Could not configure access point! This is unexpected");
-  }
-
-  server.begin();
-  DEBUG_PRINTLN("Server started");
+  DEBUG_PRINTF("Trying to connect to network '%s'...", ssid);
+  WiFi.begin(ssid, password);
 }
 
-void send_udp_broadcast() {
-  uint8_t broadcast_packet[] = { (uint8_t)((server_port & 0xff00) >> 8), (uint8_t)(server_port & 0x00ff), local_ip_address[0], local_ip_address[1], local_ip_address[2], local_ip_address[3] };
+void send_udp_broadcast(WiFiUDP& udp, const IPAddress& local_ip_address, const IPAddress& broadcast_ip_address) {
+  uint8_t broadcast_packet[] = {
+    (uint8_t)((server_port & 0xff00) >> 8),
+    (uint8_t)(server_port & 0x00ff),
+    local_ip_address[0],
+    local_ip_address[1],
+    local_ip_address[2], local_ip_address[3] };
+
   DEBUG_PRINT("Sending UDP broadcast... ");
-  udp.beginPacket(udp_broadcast_address, udp_broadcast_port);
-  udp.write(broadcast_packet, 6);
-  udp.endPacket();
+  if (udp.beginPacket(broadcast_ip_address, udp_broadcast_port) != 1)
+    DEBUG_PRINTLN("WiFiUDP.beginPacket() failed");
+  uint8_t write_result = udp.write(broadcast_packet, 6);
+
+  if (write_result != 6)
+    DEBUG_PRINTF("WiFiUDP.write() returned %d\n", write_result);
+
+  if (udp.endPacket() != 1)
+    DEBUG_PRINTLN("WiFiUDP.endPacket() failed");
+
   DEBUG_PRINTLN("Done.");
 }
 
@@ -130,34 +124,27 @@ response_code get_response_from_target() {
     return (response_code)response_buffer[0];
 }
 
-response_code forward_transmission_header(uint8_t identifier, uint8_t* additional_data_buffer, uint8_t additional_data_length) {
-  ensure_serial_input_buffer_empty();
-  Serial.write(identifier);
-  if (additional_data_length > 0)
-    Serial.write(additional_data_buffer, additional_data_length);
-  return get_response_from_target();
-}
-
 response_code forward_message(uint8_t* header, uint8_t header_length, uint8_t* data, uint8_t data_length) {
   ensure_serial_input_buffer_empty();
   Serial.write(header, header_length);
-  Serial.write(data, data_length);
+  if (data_length > 0)
+    Serial.write(data, data_length);
   return get_response_from_target();
 }
 
-void read_and_forward_message(WiFiClient& client, uint8_t header_length, uint16_t number_of_frames) {
-  uint8_t message_header[header_length];
-  uint16_t number_of_received_frames, crc, calculated_crc, payload_length;
+void read_and_forward_packet(WiFiClient& client, uint16_t number_of_packets) {
+  uint8_t message_header[packet_header_number_of_bytes];
+  uint16_t number_of_received_packets, crc, calculated_crc, payload_length;
   bool crc_match;
   response_code response_from_target;
-  number_of_received_frames = 0;
+  number_of_received_packets = 0;
 
-  while (number_of_received_frames < number_of_frames) {
+  while (number_of_received_packets < number_of_packets) {
 
     while (!client.available())
       delay(50);
 
-    if (!try_read_number_of_bytes_from_client(client, message_header, header_length)) {
+    if (!try_read_number_of_bytes_from_client(client, message_header, packet_header_number_of_bytes)) {
       DEBUG_PRINTLN("Reading of message header failed");
       return;
     }
@@ -165,21 +152,19 @@ void read_and_forward_message(WiFiClient& client, uint8_t header_length, uint16_
     crc = message_header[1] << 8 | message_header[0];
     payload_length = message_header[3] << 8 | message_header[2];
 
-    DEBUG_PRINT("CRC: ");
-    DEBUG_PRINTF("0x%02x\n", crc);
-    DEBUG_PRINT("Payload length: ");
-    DEBUG_PRINTLN(payload_length);
+    DEBUG_PRINTF("Packet %d/%d\n", number_of_received_packets + 1, number_of_packets);
+    DEBUG_PRINTF("   CRC: 0x%02x\n", crc);
+    DEBUG_PRINTF("   Payload length: %d\n", payload_length);
 
     uint8_t data_buffer[payload_length];
     if (!try_read_number_of_bytes_from_client(client, data_buffer, payload_length)) {
-      DEBUG_PRINTF("Reading of data buffer %d data failed\n", number_of_received_frames);
+      DEBUG_PRINTF("Reading of data packet %d failed\n", number_of_received_packets);
       return;
     }
 
     calculated_crc = compute_crc16_checksum(data_buffer, payload_length);
     crc_match = calculated_crc == crc;
-    DEBUG_PRINT("Computed CRC: ");
-    DEBUG_PRINTF("0x%02x (%s)\n", calculated_crc, crc_match ? "match" : "mismatch");
+    DEBUG_PRINTF("   Computed CRC:  0x%02x (%s)\n", calculated_crc, crc_match ? "match" : "mismatch");
 
     if (!crc_match) {
       send_response(client, response_code::RESPONSE_CHECKSUM_MISMATCH);
@@ -187,53 +172,31 @@ void read_and_forward_message(WiFiClient& client, uint8_t header_length, uint16_
       continue;
     }
 
-    response_from_target = forward_message(message_header, 4, data_buffer, payload_length);
+    response_from_target = forward_message(message_header, packet_header_number_of_bytes, data_buffer, payload_length);
     send_response(client, response_from_target);
     if (response_from_target != response_code::RESPONSE_OK)
       break;
 
-    number_of_received_frames++;
+    number_of_received_packets++;
   }
 }
 
 void handle_incoming_transmission(WiFiClient& client) {
-  uint8_t identifier_buffer[transmission_start_identifier_length];
-  if (!try_read_number_of_bytes_from_client(client, identifier_buffer, transmission_start_identifier_length)) {
-    DEBUG_PRINTLN("Reading of transmission identifier failed");
+  uint8_t transmission_header_buffer[transmission_header_number_of_bytes];
+  if (!try_read_number_of_bytes_from_client(client, transmission_header_buffer, transmission_header_number_of_bytes)) {
+    DEBUG_PRINTLN("Reading of transmission header failed");
     return;
   }
 
-  DEBUG_PRINTF("Message identifier: 0x%02X\n", identifier_buffer[0]);
-
-  uint16_t number_of_frames;
-  uint8_t header_length;
-  response_code code;
-
-  if (identifier_buffer[0] == animation_frames_message_identifier) {
-    uint8_t additional_header_fields[6];
-    if (!try_read_number_of_bytes_from_client(client, additional_header_fields, 6)) {
-      DEBUG_PRINTLN("Reading of additional fields in header failed");
-      return;
-    }
-
-    number_of_frames = additional_header_fields[1] << 8 | additional_header_fields[0];
-    DEBUG_PRINTF("Number of frames: %d\n", number_of_frames);
-    DEBUG_PRINTF("Number of bytes per frame: %d\n", additional_header_fields[3] << 8 | additional_header_fields[2]);
-    DEBUG_PRINTF("Number of rows: %d\n", additional_header_fields[4]);
-    DEBUG_PRINTF("Number of columns: %d\n", additional_header_fields[5]);
-
-    code = forward_transmission_header(animation_frames_message_identifier, additional_header_fields, 6);
-    header_length = 4;
-  }
-  else if (identifier_buffer[0] == game_of_life_config_message_identifier) {
-    code = forward_transmission_header(game_of_life_config_message_identifier, NULL, 0);
-    header_length = 4;
-    number_of_frames = 1;
-  }
-  else {
-    DEBUG_PRINTF("Got unknown message identifier (0x%02x)\n", identifier_buffer[0]);
+  if (transmission_header_buffer[0] == connection_ping_id) {
+    send_response(client, response_code::RESPONSE_OK);
     return;
   }
+
+  uint16_t number_of_packets = transmission_header_buffer[2] << 8 | transmission_header_buffer[1];
+  response_code code = forward_message(transmission_header_buffer, transmission_header_number_of_bytes, nullptr, 0);
+
+  DEBUG_PRINTF("Received message with id 0x%02x, number of packet: %d\n", transmission_header_buffer[0], number_of_packets);
 
   send_response(client, code);
   if (code != response_code::RESPONSE_OK) {
@@ -241,35 +204,49 @@ void handle_incoming_transmission(WiFiClient& client) {
     return;
   }
 
-  read_and_forward_message(client, header_length, number_of_frames);
+  read_and_forward_packet(client, number_of_packets);
 }
 
 void loop() {
-  static int number_of_connected_stations = 0;
   static bool has_connected_client = false;
+  static WiFiServer server(server_port);
+  static WiFiUDP udp;
+  static IPAddress ip_address;
 
-  number_of_connected_stations = WiFi.softAPgetStationNum();
-  if (number_of_connected_stations > 0) {
-    while (!has_connected_client) {
-      send_udp_broadcast();
-      WiFiClient client = server.accept();
-      if (client) {
-        DEBUG_PRINTLN("Client connected");
-        while (client.connected()) {
-          if (client.available()) {
-            DEBUG_PRINTLN("Data available from client");
-            handle_incoming_transmission(client);
-          }
-          else {
-            delay(50);
-          }
-        }
-      }
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    DEBUG_PRINT(".");
+  }
+
+  DEBUG_PRINTLN(" connected!");
+  ip_address = WiFi.localIP();
+  IPAddress broadcast_address = ip_address;
+  broadcast_address[3] = 0xff;
+  DEBUG_PRINTF("SSID: %s\nHost name: %s\nIP address: %s\nSubnet mask: %s\nGateway IP: %s\n",
+    WiFi.SSID().c_str(), WiFi.hostname().c_str(), ip_address.toString().c_str(), WiFi.subnetMask().toString().c_str(), WiFi.gatewayIP().toString().c_str());
+  DEBUG_PRINTF("Broadcast target: %s:%d\n", broadcast_address.toString().c_str(), udp_broadcast_port); 
+
+  server.begin();
+  DEBUG_PRINTLN("Server started");
+  WiFiClient client;
+  while (WiFi.status() == WL_CONNECTED && !has_connected_client) {
+    send_udp_broadcast(udp, ip_address, broadcast_address);
+    client = server.accept();
+    if (client)
+      has_connected_client = true;
+    else
       delay(5000);
+  }
+
+  DEBUG_PRINTLN("Client connected");
+  while (client.connected()) {
+    if (client.available()) {
+      DEBUG_PRINTLN("Data available from client");
+      handle_incoming_transmission(client);
+    }
+    else {
+      delay(50);
     }
   }
-  else {
-    DEBUG_PRINTLN("No client connected to access point");
-    delay(5000);
-  }
+  has_connected_client = false;
 }
