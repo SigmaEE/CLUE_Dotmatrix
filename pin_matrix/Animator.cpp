@@ -10,12 +10,14 @@ void Animator::init(AnimationFramesMessage* animation) {
   m_is_done = false;
   m_animation_counter = 0;
   m_frame_counter = 0;
+  m_elapsed_time_current_frame = 0;
+  m_current_frame_start_timestamp = 0;
 
-  m_number_of_repeats = 1;  // TODO: Include in message
   m_number_of_frames = animation->get_number_of_frames();
-  m_number_of_rows = animation->get_number_of_rows();
-  m_number_of_columns = animation->get_number_of_columns();
-  m_number_of_bytes_per_frame = animation->get_bytes_per_frame();
+  m_number_of_repeats = animation->get_frame(0)->frame_header->number_of_animation_repeats;
+  m_number_of_rows = animation->get_frame(0)->frame_header->number_of_rows;
+  m_number_of_columns = animation->get_frame(0)->frame_header->number_of_columns;
+  m_number_of_bytes_per_frame = animation->get_frame(0)->frame_header->bytes_per_frame;
   m_animation = animation;
 
   uint8_t number_of_columns = m_number_of_columns;
@@ -24,22 +26,46 @@ void Animator::init(AnimationFramesMessage* animation) {
     m_number_of_bytes_per_row++;
     number_of_columns >>= 1;
   }
-
   m_number_of_bytes_per_row--;
+  m_loop_forever = m_number_of_repeats == 0;
+  if (m_loop_forever)
+    m_number_of_repeats = 1;
 }
 
 void Animator::tick_animation() {
   if (is_done())
     return;
 
-  uint16_t idx = (uint16_t)m_frame_counter * m_number_of_bytes_per_frame;
+  uint16_t idx = 0;
   uint8_t bit_shift = 7;
   uint8_t value;
   int16_t x;
 
+  if (m_current_frame_start_timestamp == 0){
+    m_current_frame_start_timestamp = millis();
+  }
+  else {
+    uint32_t current_timestamp = millis();
+    if (current_timestamp - m_current_frame_start_timestamp > m_animation->get_frame(m_frame_counter)->frame_header->frame_time_ms) {
+      m_frame_counter++;
+      if (m_frame_counter == m_number_of_frames) {
+        m_frame_counter = 0;
+        if (!m_loop_forever)
+          m_animation_counter++;
+      }
+
+      if (m_animation_counter == m_number_of_repeats) {
+        m_animation = nullptr;
+        m_is_done = true;
+        return;
+      }
+      m_current_frame_start_timestamp = millis();
+    }
+  }
+
   for (uint8_t i = 0; i < m_number_of_rows; i++) {
     for (uint8_t j = 0; j < m_number_of_bytes_per_row; j++) {
-      value = m_animation->get_message_data()[idx];
+      value = m_animation->get_frame(m_frame_counter)->frame_data[idx];
       while (true) {
         x = (j << 3) + (7 - bit_shift);
         if (x < m_number_of_columns) {
@@ -58,17 +84,6 @@ void Animator::tick_animation() {
       bit_shift = 7;
       idx++;
     }
-  }
-
-  m_frame_counter++;
-  if (m_frame_counter == m_number_of_frames) {
-    m_frame_counter = 0;
-    m_animation_counter++;
-  }
-
-  if (m_animation_counter == m_number_of_repeats) {
-    m_animation = nullptr;
-    m_is_done = true;
   }
 }
 

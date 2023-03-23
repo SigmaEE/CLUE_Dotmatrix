@@ -24,4 +24,6 @@ public:
 private:
   HardwareSerial& m_serial_interface;
   Message* m_current_message;
+
+  const static uint8_t transmission_header_number_of_bytes;
 };

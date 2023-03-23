@@ -7,13 +7,8 @@ GameOfLife::GameOfLife(Screen* screen)
 void GameOfLife::init(GameOfLifeConfigMessage* config) {
   m_screen->clear(true);
 
-  uint16_t number_of_coordinates = config->get_message_size() / 2;
-  uint8_t x, y;
-  for (uint16_t i = 0; i < number_of_coordinates; i++) {
-    x = config->get_message_data()[i * 2];
-    y = config->get_message_data()[(i * 2) + 1];
-    m_screen->set_value_for_pixel(x, y, Screen::PixelValue::CURRENT);
-  }
+  for (uint16_t i = 0; i < config->number_of_coordinates; i++)
+    m_screen->set_value_for_pixel(config->coordinates[i].x, config->coordinates[i].y, Screen::PixelValue::CURRENT);
 }
 
 void GameOfLife::tick() {

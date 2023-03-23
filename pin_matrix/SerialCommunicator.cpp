@@ -9,11 +9,17 @@ SerialCommunicator::SerialCommunicator(HardwareSerial& serial_interface)
 
 bool SerialCommunicator::try_read_header() {
   if (m_serial_interface.available() > 0) {
-    uint8_t identifier = m_serial_interface.read();
+    uint8_t transmission_header_buffer[SerialCommunicator::transmission_header_number_of_bytes];
+    if (m_serial_interface.readBytes(transmission_header_buffer, SerialCommunicator::transmission_header_number_of_bytes) != SerialCommunicator::transmission_header_number_of_bytes)
+      return false;
+
+    uint8_t identifier = transmission_header_buffer[0];
+    uint16_t number_of_packets = transmission_header_buffer[2] << 8 | transmission_header_buffer[1];
+
     if (identifier == Message::animation_frames_message_identifier)
-      m_current_message = AnimationFramesMessage::try_create(m_serial_interface);
+      m_current_message = AnimationFramesMessage::create(number_of_packets);
     else if (identifier == Message::game_of_life_config_message_identifier)
-      m_current_message = GameOfLifeConfigMessage::try_create();
+      m_current_message = GameOfLifeConfigMessage::create();
   }
     
   send_result(m_current_message != nullptr ? SerialCommunicator::ReadResult::Ok : SerialCommunicator::ReadResult::UnexpectedData);
@@ -38,3 +44,5 @@ void SerialCommunicator::flush_message() {
   delete(m_current_message);
   m_current_message = nullptr;
 }
+
+const uint8_t SerialCommunicator::transmission_header_number_of_bytes = 3;

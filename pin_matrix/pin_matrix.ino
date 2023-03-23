@@ -10,22 +10,6 @@
 #include "SerialCommunicator.h"
 #include "Messages.h"
 
-// Arduino Nano pinout
-// #define IC1_ENABLE 3
-// #define IC1_DATA 8
-// #define IC1_A0 2
-// #define IC1_A1 10
-// #define IC1_A2 1
-// #define IC1_B0 9
-// #define IC1_B1 0
-// #define IC3_ENABLE 6
-// #define IC2_ENABLE 11
-// #define IC2_IC3_A0 7
-// #define IC2_IC3_A1 5
-// #define IC2_IC3_A2 13
-// #define IC2_IC3_B0 12
-// #define IC2_IC3_B1 4
-
 // Arduino Mega pinout
 #define IC1_ENABLE 22
 #define IC1_B1 23
