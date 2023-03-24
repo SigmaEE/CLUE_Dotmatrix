@@ -24,7 +24,7 @@ void TextScroller::tick() {
   if (is_done())
     return;
 
-  m_screen->clear(false);
+  m_screen->clear_bounding_box({0, m_screen->screen_width(), m_y_origin, m_screen->screen_height()}, false);
   TextUtilities::write_text_at_position(m_screen, m_text_to_scroll, m_current_start_column, m_y_origin, m_character_spacing, m_use_small_font, TextUtilities::TextMode::NOT_PERSISTENT);
   m_current_start_column += m_delta;
   m_current_end_column += m_delta;

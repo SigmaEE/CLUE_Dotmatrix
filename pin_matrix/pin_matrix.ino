@@ -10,6 +10,7 @@
 #include "Screen.h"
 #include "SerialCommunicator.h"
 #include "TextScroller.h"
+#include "DotMatrixFont.h"
 
 // Arduino Mega pinout
 #define IC1_ENABLE 22
@@ -34,13 +35,6 @@
 #define MATRIX_WIDTH 28
 #define MATRIX_HEIGHT 16
 #define CHAR_SPACING 1
-#define TWO_LINE_LAYOUT 1
-
-#if TWO_LINE_LAYOUT
-  #define DEFAULT_Y_ORIGIN 1
-#else
-  #define DEFAULT_Y_ORIGIN 4
-#endif
 
 #define REFRESH_RATE_MS 5
 #define ENABLE_MS 1
@@ -206,24 +200,33 @@ bool check_remote_input(SerialCommunicator& communicator) {
 }
 
 void loop() {
+  static bool remote_input_mode = true;
+  static bool two_line_layout = true;
+  static bool run_seconds_animation = false;
+  static uint8_t y_origin_line_1;
+  static uint8_t y_origin_line_2 = 8;
+
   static SerialCommunicator communicator(Serial1);
-  static Clock clock(&screen, CHAR_SPACING, DEFAULT_Y_ORIGIN, TWO_LINE_LAYOUT == 1);
+  static Clock clock(&screen, CHAR_SPACING);
   static Animator animator(&screen);
   static GameOfLife game_of_life(&screen);
   static TextScroller scroller(&screen);
   static RevealTextAnimation revealer(&screen);
   static DisplayMode current_mode = DisplayMode::CLOCK;
   static DisplayMode new_mode = DisplayMode::CLOCK;
-  static bool remote_input_mode = true;
-
   static bool first = true;
+
   // Set-up clock
   if (first) {
     clock.init(&rtc, RtcDateTime(__DATE__, __TIME__));
-    clock.run_seconds_animation = TWO_LINE_LAYOUT == 0;
     clock.run_reveal_text_animation = true;
     first = false;
   }
+
+  y_origin_line_1 = two_line_layout ? 1 : 4;
+  clock.run_seconds_animation = run_seconds_animation;
+  clock.y_origin = y_origin_line_1;
+  clock.use_small_font = two_line_layout;
 
   bool new_input = false;
   // Check if any new input is available
@@ -277,9 +280,12 @@ void loop() {
         if (clock.wants_mode_change()) {
           new_mode = clock.new_mode();
           if (new_mode == DisplayMode::REVEAL_TEXT_ANIMATION)
-            revealer.init(clock.string_to_reveal(), CHAR_SPACING, number_of_simultaneous_rows_or_columns_in_reveal, DEFAULT_Y_ORIGIN, TWO_LINE_LAYOUT == 1, reveal_mode);
-          else if (new_mode == DisplayMode::SCROLL_TEXT_ANIMATION)
-            scroller.init(clock.string_to_scroll(), scroll_direction, CHAR_SPACING, DEFAULT_Y_ORIGIN, TWO_LINE_LAYOUT == 1);
+            revealer.init(clock.string_to_reveal(), CHAR_SPACING, number_of_simultaneous_rows_or_columns_in_reveal, y_origin_line_1, two_line_layout, reveal_mode);
+          else if (new_mode == DisplayMode::SCROLL_TEXT_ANIMATION) {
+            if (two_line_layout)
+              new_mode = DisplayMode::SCROLL_TEXT_TWO_LINE;
+            scroller.init(clock.string_to_scroll(), scroll_direction, CHAR_SPACING, two_line_layout ? y_origin_line_2 : y_origin_line_1, false);
+          }
         }
         break;
 
@@ -312,6 +318,12 @@ void loop() {
           new_mode = DisplayMode::CLOCK;
         }
         break;
+
+      case DisplayMode::SCROLL_TEXT_TWO_LINE:
+        scroller.tick();
+        clock.tick();
+        if (scroller.is_done())
+          new_mode = DisplayMode::CLOCK;
     }
   }
 

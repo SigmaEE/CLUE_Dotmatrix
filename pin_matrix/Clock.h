@@ -11,8 +11,10 @@ class Clock {
 public:
   bool run_seconds_animation;
   bool run_reveal_text_animation;
+  bool use_small_font;
+  uint8_t y_origin;
 
-  Clock(Screen*, uint8_t, uint8_t, bool);
+  Clock(Screen*, uint8_t);
   
   void init(RtcDS1302<ThreeWire>*, RtcDateTime);
 
@@ -30,8 +32,6 @@ private:
   Screen* m_screen;
   RtcDS1302<ThreeWire>* m_rtc;
   uint8_t m_char_spacing;
-  uint8_t m_y_origin;
-  bool m_use_small_font;
   char m_time_string[10];
   char m_date_string[30]; // Longest possible date should be a Wednesday in September
   bool m_wants_mode_change;

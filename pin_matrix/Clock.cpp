@@ -3,11 +3,9 @@
 #include "DotMatrixFont.h"
 #include "TextUtilities.h"
 
-Clock::Clock(Screen* screen, uint8_t char_spacing, uint8_t y_origin, bool use_small_font)
+Clock::Clock(Screen* screen, uint8_t char_spacing)
   : m_screen(screen),
-  m_char_spacing(char_spacing),
-  m_y_origin(y_origin),
-  m_use_small_font(use_small_font)
+  m_char_spacing(char_spacing)
   {
     m_bounding_box = {0, 0, 0, 0};
   }
@@ -52,11 +50,11 @@ void Clock::tick() {
     return;
   }
 
-  if (now.Minute() != m_last_minute || ((run_seconds_animation || m_use_small_font) && now.Second() != m_last_second)) {
+  if (now.Minute() != m_last_minute || ((run_seconds_animation || use_small_font) && now.Second() != m_last_second)) {
     if (!m_bounding_box.all_zero())
       m_screen->clear_bounding_box(m_bounding_box, true);
 
-    DateAndTimeStringBuilder::build_time_string(m_time_string, now.Hour(), now.Minute(), now.Second(), m_draw_colon_separator || m_use_small_font, m_use_small_font);
+    DateAndTimeStringBuilder::build_time_string(m_time_string, now.Hour(), now.Minute(), now.Second(), m_draw_colon_separator || use_small_font, use_small_font);
     if (run_reveal_text_animation) {
       m_last_minute = now.Minute();
       m_last_second = now.Second();
@@ -66,12 +64,12 @@ void Clock::tick() {
       return;
     }
     else {
-      uint8_t x_origin = TextUtilities::get_x_origin_of_centered_text(m_screen, m_time_string, m_char_spacing, m_use_small_font);
+      uint8_t x_origin = TextUtilities::get_x_origin_of_centered_text(m_screen, m_time_string, m_char_spacing, use_small_font);
       m_bounding_box.left = x_origin;
-      m_bounding_box.right = x_origin + TextUtilities::get_number_of_columns_for_text(m_time_string, m_char_spacing, m_use_small_font);
-      m_bounding_box.top = m_y_origin;
-      m_bounding_box.bottom = m_y_origin + DotMatrixFont::get_height_of_character(m_use_small_font);
-      TextUtilities::write_text_at_position(m_screen, m_time_string, x_origin, m_y_origin, m_char_spacing, m_use_small_font, TextUtilities::TextMode::NOT_PERSISTENT);
+      m_bounding_box.right = x_origin + TextUtilities::get_number_of_columns_for_text(m_time_string, m_char_spacing, use_small_font);
+      m_bounding_box.top = y_origin;
+      m_bounding_box.bottom = y_origin + DotMatrixFont::get_height_of_character(use_small_font);
+      TextUtilities::write_text_at_position(m_screen, m_time_string, x_origin, y_origin, m_char_spacing, use_small_font, TextUtilities::TextMode::NOT_PERSISTENT);
     }
 
     m_last_minute = now.Minute();
