@@ -18,18 +18,37 @@ public:
 
   virtual ~Message() {}
 protected:
-  const static uint16_t crc16_polynomial = 0x1021;
-
-  static bool try_read_crc_and_payload_length(HardwareSerial& serial_interface, uint16_t* crc, uint16_t* payload_length) {
+  static SerialCommunicator::ReadResult try_read_crc_and_payload_length(HardwareSerial& serial_interface, SerialCommunicator& communicator, uint16_t* crc, uint16_t* payload_length) {
     uint8_t header_buffer[4];
-    if (serial_interface.readBytes(header_buffer, 4) != 4)
-      return false;
+    if (serial_interface.readBytes(header_buffer, 4) != 4) {
+      communicator.send_result(SerialCommunicator::ReadResult::UnexpectedData);
+      return SerialCommunicator::ReadResult::UnexpectedData;
+    }
 
     *crc = header_buffer[1] << 8 | header_buffer[0];
     *payload_length = header_buffer[3] << 8 | header_buffer[2];
-    return true;
+    return SerialCommunicator::ReadResult::Ok;
   }
 
+  static SerialCommunicator::ReadResult try_read_and_verify_payload_buffer(HardwareSerial& serial_interface, SerialCommunicator& communicator, uint16_t crc, uint8_t* payload_buffer, uint16_t payload_length) {
+    SerialCommunicator::ReadResult result;
+    if (serial_interface.readBytes(payload_buffer, payload_length) != payload_length) {
+      result = SerialCommunicator::ReadResult::UnexpectedData;
+    }
+    else {
+      uint16_t calculated_crc = Message::compute_crc16_checksum(payload_buffer, payload_length);
+      result = calculated_crc == crc ? SerialCommunicator::ReadResult::Ok : SerialCommunicator::ReadResult::ChecksumMismatch;
+    }
+
+    communicator.send_result(result);
+    if (result == SerialCommunicator::ReadResult::ChecksumMismatch)
+      delay(10);
+
+    return result;
+  }
+
+private:
+  const static uint16_t crc16_polynomial = 0x1021;
   static uint16_t compute_crc16_checksum(uint8_t* data, uint16_t length) {
     // See https://en.wikipedia.org/wiki/Computation_of_cyclic_redundancy_checks
     uint16_t crc = 0xffff;
@@ -112,26 +131,19 @@ public:
 
   SerialCommunicator::ReadResult read_message(HardwareSerial& serial_interface, SerialCommunicator& communicator) override {
     uint16_t frame_counter = 0;
-    uint16_t crc, payload_length, calculated_crc;
-  
+    uint16_t payload_length, crc;
+    SerialCommunicator::ReadResult result;
     while (frame_counter < m_number_of_frames) {
-      if (!Message::try_read_crc_and_payload_length(serial_interface, &crc, &payload_length)) {
-        communicator.send_result(SerialCommunicator::ReadResult::UnexpectedData);
-        return SerialCommunicator::ReadResult::UnexpectedData;
-      }
+      result = Message::try_read_crc_and_payload_length(serial_interface, communicator, &crc, &payload_length);
+      if (result != SerialCommunicator::ReadResult::Ok)
+        return result;
 
       uint8_t payload_buffer[payload_length];
-      if (serial_interface.readBytes(payload_buffer, payload_length) != payload_length) {
-        communicator.send_result(SerialCommunicator::ReadResult::UnexpectedData);
-        return SerialCommunicator::ReadResult::UnexpectedData;
-      }
-
-      calculated_crc = Message::compute_crc16_checksum(payload_buffer, payload_length);
-
-      if (calculated_crc != crc) {
-        communicator.send_result(SerialCommunicator::ReadResult::ChecksumMismatch);
+      result = Message::try_read_and_verify_payload_buffer(serial_interface, communicator, crc, payload_buffer, payload_length);
+      if (result == SerialCommunicator::ReadResult::ChecksumMismatch)
         continue;
-      }
+      else if (result != SerialCommunicator::ReadResult::Ok)
+        return result;
 
       AnimationFrame* msg = AnimationFrame::try_create(payload_buffer, payload_length);
       if (msg == nullptr) {
@@ -186,27 +198,26 @@ public:
   }
     
   SerialCommunicator::ReadResult read_message(HardwareSerial& serial_interface, SerialCommunicator& communicator) override {
-    uint16_t crc, payload_length, calculated_crc;
+    uint16_t crc, payload_length;
+    SerialCommunicator::ReadResult result;
+
     while (true) {
-      if (!Message::try_read_crc_and_payload_length(serial_interface, &crc, &payload_length)) {
-        return SerialCommunicator::ReadResult::UnexpectedData;
-      }
-      uint8_t data_buffer[payload_length];
-      if (serial_interface.readBytes(data_buffer, payload_length) != payload_length)
-        return SerialCommunicator::ReadResult::UnexpectedData;
+      result = Message::try_read_crc_and_payload_length(serial_interface, communicator, &crc, &payload_length);
+      if (result != SerialCommunicator::ReadResult::Ok)
+        return result;
 
-      calculated_crc = Message::compute_crc16_checksum(data_buffer, payload_length);
-      if (calculated_crc != crc) {
-        communicator.send_result(SerialCommunicator::ReadResult::ChecksumMismatch);
-        delay(50);
+      uint8_t payload_buffer[payload_length];
+      result = try_read_and_verify_payload_buffer(serial_interface, communicator, crc, payload_buffer, payload_length);
+      if (result == SerialCommunicator::ReadResult::ChecksumMismatch)
         continue;
-      }
+      else if (result != SerialCommunicator::ReadResult::Ok)
+        return result;
 
-      time_between_ticks = data_buffer[1] << 8 | data_buffer[0];
+      time_between_ticks = payload_buffer[1] << 8 | payload_buffer[0];
       number_of_coordinates = (payload_length - 2) / 2;
       coordinates = new Coordinate[number_of_coordinates];
       for (uint16_t i = 0; i < number_of_coordinates; i++)
-        coordinates[i] = { data_buffer[2 + (i * 2)], data_buffer[2 + ((i * 2) + 1)] };
+        coordinates[i] = { payload_buffer[2 + (i * 2)], payload_buffer[2 + ((i * 2) + 1)] };
 
       communicator.send_result(SerialCommunicator::ReadResult::Ok);
       break;
