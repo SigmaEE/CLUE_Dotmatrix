@@ -20,6 +20,9 @@ bool SerialCommunicator::try_read_header() {
       m_current_message = AnimationFramesMessage::create(number_of_packets);
     else if (identifier == Message::game_of_life_config_message_identifier)
       m_current_message = GameOfLifeConfigMessage::create();
+    else if (identifier == Message::dot_matrix_command_message_identifier)
+      m_current_message = DotMatrixCommandMessage::create();
+
     send_result(m_current_message != nullptr ? SerialCommunicator::ReadResult::Ok : SerialCommunicator::ReadResult::UnexpectedData);
   }
   return m_current_message != nullptr;

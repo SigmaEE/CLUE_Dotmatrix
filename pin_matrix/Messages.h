@@ -6,7 +6,8 @@ class Message {
 public:
   enum class Type {
     AnimationFrames,
-    GameOfLifeConfig
+    GameOfLifeConfig,
+    DotMatrixCommand,
   };
 
   virtual Type get_type() const = 0;
@@ -15,6 +16,7 @@ public:
 
   const static uint8_t animation_frames_message_identifier = 0x10;
   const static uint8_t game_of_life_config_message_identifier = 0x11;
+  const static uint8_t dot_matrix_command_message_identifier = 0x12;
 
   virtual ~Message() {}
 protected:
@@ -231,4 +233,54 @@ public:
   }
 private:
   GameOfLifeConfigMessage() { }
+};
+
+class DotMatrixCommandMessage final : public Message {
+public:
+  enum class Command {
+    SetClockMode
+  };
+
+  Command cmd;
+
+  Message::Type get_type() const override {
+    return Message::Type::DotMatrixCommand;
+  }
+
+  SerialCommunicator::ReadResult read_message(HardwareSerial& serial_interface, SerialCommunicator& communicator) override {
+    uint16_t crc, payload_length;
+    SerialCommunicator::ReadResult result;
+    bool valid_command = false;
+
+    while (true) {
+      result = Message::try_read_crc_and_payload_length(serial_interface, communicator, &crc, &payload_length);
+      if (result != SerialCommunicator::ReadResult::Ok)
+        return result;
+
+      uint8_t payload_buffer[payload_length];
+      result = try_read_and_verify_payload_buffer(serial_interface, communicator, crc, payload_buffer, payload_length);
+      if (result == SerialCommunicator::ReadResult::ChecksumMismatch)
+        continue;
+      else if (result != SerialCommunicator::ReadResult::Ok)
+        return result;
+
+      switch (payload_buffer[0]) {
+        case 0x01:
+          cmd = DotMatrixCommandMessage::Command::SetClockMode;
+          valid_command = true;
+          break;
+      }
+      result = valid_command ? SerialCommunicator::ReadResult::Ok : SerialCommunicator::ReadResult::UnexpectedData;
+      break;
+    }
+
+    communicator.send_result(result);
+    return result;
+  }
+
+  static DotMatrixCommandMessage* create() {
+    return new DotMatrixCommandMessage();
+  }
+
+  ~DotMatrixCommandMessage() override {}
 };

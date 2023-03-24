@@ -222,10 +222,24 @@ void loop() {
   bool new_input = false;
   // Check if any new input is available
   if (remote_input_mode && check_remote_input(communicator)) {
-    if (communicator.get_current_message()->get_type() == Message::Type::AnimationFrames)
-      new_mode = DisplayMode::ANIMATOR;
-    else if (communicator.get_current_message()->get_type() == Message::Type::GameOfLifeConfig)
-      new_mode = DisplayMode::GAME_OF_LIFE;
+    Message::Type type = communicator.get_current_message()->get_type();
+    switch (type) {
+      case Message::Type::AnimationFrames:
+        new_mode = DisplayMode::ANIMATOR;
+        break;
+      case Message::Type::GameOfLifeConfig:
+        new_mode = DisplayMode::GAME_OF_LIFE;
+        break;
+      case Message::Type::DotMatrixCommand:
+        switch (static_cast<DotMatrixCommandMessage*>(communicator.get_current_message())->cmd)
+        {
+          case DotMatrixCommandMessage::Command::SetClockMode:
+            new_mode = DisplayMode::CLOCK;
+            break;
+        }
+        communicator.flush_current_message();
+        break;
+    }
     new_input = true;
   }
 
@@ -248,7 +262,6 @@ void loop() {
         game_of_life.terminate();
         break;
     }
-    update_screen();
   }
   else {
     // Execute the current step
@@ -294,8 +307,9 @@ void loop() {
         }
         break;
     }
-    update_screen();
   }
+
+  update_screen();
 
   // Set-up up the next iteration if a mode change is pending
   if (new_input || (new_mode != current_mode)) {
