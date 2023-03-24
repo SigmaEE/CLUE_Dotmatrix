@@ -148,23 +148,27 @@ namespace DotMatrixAnimationDesigner.Communication
         public override ushort NumberOfPackets => 1;
 
         private readonly byte[] _dataPacket;
+        private readonly ushort _timeBetweenTicks;
 
-        private GameOfLifeConfigMesssage(ReadOnlySpan<byte> dataPacket)
+        private GameOfLifeConfigMesssage(ReadOnlySpan<byte> dataPacket, ushort timeBetweenTicks)
         {
             _dataPacket = dataPacket.ToArray();
+            _timeBetweenTicks = timeBetweenTicks;
         }
 
         public override ReadOnlySpan<byte> GetPacket(int index = 0)
         {
-            var packet = new byte[CommonHeaderLength + _dataPacket.Length];
-            var commonHeader = GetCommonHeader(_dataPacket.AsSpan(), (ushort)(_dataPacket.Length));
+            var packet = new byte[CommonHeaderLength + 2 + _dataPacket.Length];
+            packet[CommonHeaderLength] = GetLsb(_timeBetweenTicks);
+            packet[CommonHeaderLength + 1] = GetMsb(_timeBetweenTicks);
+            Buffer.BlockCopy(_dataPacket, 0, packet, CommonHeaderLength + 2, _dataPacket.Length);
+            var commonHeader = GetCommonHeader(packet.AsSpan()[CommonHeaderLength..], (ushort)(2 + _dataPacket.Length));
             Buffer.BlockCopy(commonHeader, 0, packet, 0, CommonHeaderLength);
-            Buffer.BlockCopy(_dataPacket, 0, packet, CommonHeaderLength, _dataPacket.Length);
             return packet;
         }
 
         public static GameOfLifeConfigMesssage Get(DotMatrixContainer container)
-            => new(container.GetBytesForFrameAsCoordinates(container.SelectedFrame));
+            => new(container.GetBytesForFrameAsCoordinates(container.SelectedFrame), container.GetFrameLengthForFrame(container.SelectedFrame));
     }
 
 }

@@ -224,6 +224,7 @@ namespace DotMatrixAnimationDesigner.Communication
             catch (SocketException e)
             {
                 TransmissionProgressMessage = $"{statusPrefix}Transmission failed, got SocketException {e.ErrorCode} ({e.Message})";
+                ResetConnectionStatusAndSetClearMessageTimer();
                 return ResponseCode.TimeoutAccessPoint;
             }
 
