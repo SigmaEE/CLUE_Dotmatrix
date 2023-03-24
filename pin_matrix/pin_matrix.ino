@@ -202,7 +202,7 @@ bool check_remote_input(SerialCommunicator& communicator) {
 void loop() {
   static bool remote_input_mode = true;
   static bool two_line_layout = true;
-  static bool run_seconds_animation = false;
+  static bool run_seconds_animation = true;
   static uint8_t y_origin_line_1;
   static uint8_t y_origin_line_2 = 8;
 
@@ -223,11 +223,6 @@ void loop() {
     first = false;
   }
 
-  y_origin_line_1 = two_line_layout ? 1 : 4;
-  clock.run_seconds_animation = run_seconds_animation;
-  clock.y_origin = y_origin_line_1;
-  clock.use_small_font = two_line_layout;
-
   bool new_input = false;
   // Check if any new input is available
   if (remote_input_mode && check_remote_input(communicator)) {
@@ -240,10 +235,27 @@ void loop() {
         new_mode = DisplayMode::GAME_OF_LIFE;
         break;
       case Message::Type::DotMatrixCommand:
-        switch (static_cast<DotMatrixCommandMessage*>(communicator.get_current_message())->cmd)
-        {
+        switch (static_cast<DotMatrixCommandMessage*>(communicator.get_current_message())->cmd) {
           case DotMatrixCommandMessage::Command::SetClockMode:
             new_mode = DisplayMode::CLOCK;
+            break;
+          case DotMatrixCommandMessage::Command::SetOneLineMode:
+            two_line_layout = false;
+            break;
+          case DotMatrixCommandMessage::Command::SetTwoLineMode:
+            two_line_layout = true;
+            break;
+          case DotMatrixCommandMessage::Command::SetSecondAnimationActive:
+            run_seconds_animation = true;
+            break;
+          case DotMatrixCommandMessage::Command::SetSecondAnimationInactive:
+            run_seconds_animation = false;
+            break;
+          case DotMatrixCommandMessage::Command::ScrollDate:
+            // TODO
+            //if (two_line_layout)
+            //  new_mode = DisplayMode::SCROLL_TEXT_TWO_LINE;
+            //scroller.init(clock.string_to_scroll(), scroll_direction, CHAR_SPACING, two_line_layout ? y_origin_line_2 : y_origin_line_1, false);
             break;
         }
         communicator.flush_current_message();
@@ -251,6 +263,11 @@ void loop() {
     }
     new_input = true;
   }
+
+  y_origin_line_1 = two_line_layout ? 1 : 4;
+  clock.run_seconds_animation = run_seconds_animation;
+  clock.y_origin = y_origin_line_1;
+  clock.use_small_font = two_line_layout;
 
   // Check if the current mode must be terminated
   if (new_input) {
