@@ -451,6 +451,29 @@
                         HorizontalAlignment="Right"
                         VerticalAlignment="Bottom">
 
+                <!-- Set to clock mode button -->
+                <Button Content="Set to clock mode"
+                        HorizontalAlignment="Right"
+                        Margin="0,0,0,10"
+                        Command="{Binding Path=SendDotMatrixCommandCommand}"
+                        CommandParameter="{x:Static communication:DotMatrixCommand.SetClockMode}">
+                    <Button.Style>
+                        <Style TargetType="{x:Type Button}" BasedOn="{StaticResource ButtonPrimaryStyle}">
+                            <Setter Property="IsEnabled" Value="False" />
+                            <Setter Property="ToolTip" Value="Cannot set to clock mode - not connected"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Path=Connection.Status}" Value="{x:Static communication:ConnectionStatus.Connected}">
+                                    <Setter Property="IsEnabled" Value="True" />
+                                    <Setter Property="ToolTip" Value="Click to send set to clock mode command to display" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Path=Connection.Status}" Value="{x:Static communication:ConnectionStatus.Sending}">
+                                    <Setter Property="ToolTip" Value="Sending..." />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+
                 <!-- Transmit option -->
                 <StackPanel Orientation="Horizontal"
                             HorizontalAlignment="Right"

@@ -4,7 +4,6 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
@@ -96,7 +95,7 @@ namespace DotMatrixAnimationDesigner
         private ICommand? _connectOrDisconnectToPinMatrixCommand;
         private ICommand? _sendFrameToPinMatrixCommand;
         private ICommand? _sendFramesToPinMatrixCommand;
-
+        private ICommand? _sendDotMatrixCommandCommand;
         public ICommand SetDimensionsCommand
         {
             get
@@ -213,6 +212,15 @@ namespace DotMatrixAnimationDesigner
                 return _sendFramesToPinMatrixCommand;
             }
         }
+
+        public ICommand SendDotMatrixCommandCommand
+        {
+            get
+            {
+                _sendDotMatrixCommandCommand ??= new RelayCommand<DotMatrixCommand>(SendCommandToDotMatrix);
+                return _sendDotMatrixCommandCommand;
+            }
+        }
         #endregion
 
         private readonly VistaSaveFileDialog _exportDialog = new()
@@ -304,6 +312,14 @@ namespace DotMatrixAnimationDesigner
                 return;
 
             Task.Run(() => Connection.Transmit(Container, TransmitOption, onlyIncludeCurrent));
+        }
+
+        private void SendCommandToDotMatrix(DotMatrixCommand cmd)
+        {
+            if (Connection.Status != ConnectionStatus.Connected)
+                return;
+
+            Task.Run(() => Connection.TransmitCommand(cmd));
         }
 
         private static List<IPAddress> FetchLocalIpv4Addresses()

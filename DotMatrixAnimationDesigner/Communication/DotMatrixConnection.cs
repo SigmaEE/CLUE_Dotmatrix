@@ -165,36 +165,19 @@ namespace DotMatrixAnimationDesigner.Communication
             if (_client == default || !_client.Connected)
                 return;
 
-            Status = ConnectionStatus.Sending;
-            TransmissionProgressMessage = $"Transmitting {transmitOption} header...";
-
-            DotMatrixMessage msg = transmitOption switch
+            TransmitMessage(_client, transmitOption switch
             {
                 TransmitOption.AnimationFrames => AnimationFramesMessage.Get(container, transmitOnlyCurrent),
                 TransmitOption.GameOfLifeConfig => GameOfLifeConfigMesssage.Get(container),
                 _ => throw new NotImplementedException(),
-            };
+            }, transmitOption.ToString());
+        }
 
-            var responseCode = SendAndAwaitResponse(_client, msg.GetTransmissionHeader());
-            if (responseCode != ResponseCode.Ok)
+        public void TransmitCommand(DotMatrixCommand cmd)
+        {
+            if (_client == default || !_client.Connected)
                 return;
-
-            for (var i = 0; i < msg.NumberOfPackets; i++)
-            {
-                responseCode = SendAndAwaitResponse(_client, msg.GetPacket(i), $"Frame {i + 1}/{msg.NumberOfPackets}");
-                if (responseCode == ResponseCode.ChecksumMismatch)
-                {
-                    i--;
-                    continue;
-                }
-                else if (responseCode != ResponseCode.Ok)
-                {
-                    return;
-                }
-            }
-
-            TransmissionProgressMessage = "Successfully transmitted all data";
-            ResetConnectionStatusAndSetClearMessageTimer();
+            TransmitMessage(_client, CommandMessage.Get(cmd), cmd.ToString());
         }
         #endregion
 
@@ -212,6 +195,33 @@ namespace DotMatrixAnimationDesigner.Communication
                 Disconnect();
             else
                 _checkConnectionAliveTimer.Change(CheckConnectionAliveIntervalMs, Timeout.Infinite);
+        }
+
+        private void TransmitMessage(TcpClient client, DotMatrixMessage message, string messageType)
+        {
+            Status = ConnectionStatus.Sending;
+            TransmissionProgressMessage = $"Transmitting {messageType} header...";
+
+            var responseCode = SendAndAwaitResponse(client, message.GetTransmissionHeader());
+            if (responseCode != ResponseCode.Ok)
+                return;
+
+            for (var i = 0; i < message.NumberOfPackets; i++)
+            {
+                responseCode = SendAndAwaitResponse(client, message.GetPacket(i), $"Frame {i + 1}/{message.NumberOfPackets}");
+                if (responseCode == ResponseCode.ChecksumMismatch)
+                {
+                    i--;
+                    continue;
+                }
+                else if (responseCode != ResponseCode.Ok)
+                {
+                    return;
+                }
+            }
+
+            TransmissionProgressMessage = "Successfully transmitted all data";
+            ResetConnectionStatusAndSetClearMessageTimer();
         }
 
         private ResponseCode SendAndAwaitResponse(TcpClient client, ReadOnlySpan<byte> data, string statusPrefix = "", bool suppressOutput = false)

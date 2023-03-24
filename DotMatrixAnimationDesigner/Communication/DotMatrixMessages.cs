@@ -7,7 +7,13 @@ namespace DotMatrixAnimationDesigner.Communication
     {
         ConnectionAlivePing,
         AnimationFrames,
-        GameOfLifeConfig
+        GameOfLifeConfig,
+        CommandMessage
+    }
+
+    public enum DotMatrixCommand
+    {
+        SetClockMode = 0x01
     }
 
     internal abstract class DotMatrixMessage
@@ -171,4 +177,31 @@ namespace DotMatrixAnimationDesigner.Communication
             => new(container.GetBytesForFrameAsCoordinates(container.SelectedFrame), container.GetFrameLengthForFrame(container.SelectedFrame));
     }
 
+    internal class CommandMessage : DotMatrixMessage
+    {
+        public override byte Identifier => 0x12;
+
+        public override MessageType Type => MessageType.CommandMessage;
+
+        public override ushort NumberOfPackets => 1;
+
+        private readonly byte _commandValue;
+
+        private CommandMessage(byte commandValue)
+        {
+            _commandValue = commandValue;
+        }
+
+        public static CommandMessage Get(DotMatrixCommand cmd)
+            => new((byte)cmd);
+
+        public override ReadOnlySpan<byte> GetPacket(int index = 0)
+        {
+            var packet = new byte[CommonHeaderLength + 1];
+            packet[CommonHeaderLength] = _commandValue;
+            var commonHeader = GetCommonHeader(new byte[] { _commandValue }, 1);
+            Buffer.BlockCopy(commonHeader, 0, packet, 0, CommonHeaderLength);
+            return packet;
+        }
+    }
 }
