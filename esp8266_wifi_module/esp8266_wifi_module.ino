@@ -2,6 +2,7 @@
 #include <WiFiUdp.h>
 
 #define DEBUG 0
+#define STA_MODE 0
 
 #if DEBUG
   #define DEBUG_PRINT(x) Serial.print(x)
@@ -22,6 +23,8 @@ const uint8_t connection_ping_id = 0xff;
 
 const char* ssid = "sigma-guest";
 const char* password = "starforlife2005";
+const char* ap_name = "PinMatrixNetwork";
+const char* ap_password = "flipthedot";
 
 enum response_code {
   RESPONSE_OK = 0x01,
@@ -36,13 +39,19 @@ void setup() {
   Serial.begin(115200);
   Serial.setTimeout(3000);
 
-  if (!WiFi.mode(WIFI_STA)){
+#if STA_MODE
+  if (!WiFi.mode(WIFI_STA)) {
     DEBUG_PRINTLN("Could not set module to WiFi Station mode! This is unexpected");
     return;
   }
-
   DEBUG_PRINTF("Trying to connect to network '%s'...", ssid);
   WiFi.begin(ssid, password);
+#else
+  if (!WiFi.mode(WIFI_AP) || ! WiFi.softAP(ap_name, ap_password)) {
+    DEBUG_PRINTLN("Could not set module to WiFi Access Point mode! This is unexpected");
+    return;
+  }
+#endif
 }
 
 void send_udp_broadcast(WiFiUDP& udp, const IPAddress& local_ip_address, const IPAddress& broadcast_ip_address) {
@@ -207,29 +216,52 @@ void handle_incoming_transmission(WiFiClient& client) {
   read_and_forward_packet(client, number_of_packets);
 }
 
+bool get_broadcast_condition(bool has_connected_client) {
+#if STA_MODE
+  return WiFi.status() == WL_CONNECTED && !has_connected_client;
+#else
+  return !has_connected_client;
+#endif
+}
+
 void loop() {
   static bool has_connected_client = false;
   static WiFiServer server(server_port);
   static WiFiUDP udp;
   static IPAddress ip_address;
+  static bool broadcast_condition;
 
+#if STA_MODE
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     DEBUG_PRINT(".");
   }
-
   DEBUG_PRINTLN(" connected!");
+#endif
+
+#if STA_MODE
   ip_address = WiFi.localIP();
+#else
+  ip_address = WiFi.softAPIP();
+#endif
+
   IPAddress broadcast_address = ip_address;
   broadcast_address[3] = 0xff;
+#if STA_MODE
   DEBUG_PRINTF("SSID: %s\nHost name: %s\nIP address: %s\nSubnet mask: %s\nGateway IP: %s\n",
     WiFi.SSID().c_str(), WiFi.hostname().c_str(), ip_address.toString().c_str(), WiFi.subnetMask().toString().c_str(), WiFi.gatewayIP().toString().c_str());
+#else
+DEBUG_PRINTF("SSID: %s\nHost name: %s\nIP address: %s\n",
+    WiFi.SSID().c_str(), WiFi.hostname().c_str(), ip_address.toString().c_str());
+#endif
+
   DEBUG_PRINTF("Broadcast target: %s:%d\n", broadcast_address.toString().c_str(), udp_broadcast_port); 
 
   server.begin();
   DEBUG_PRINTLN("Server started");
+
   WiFiClient client;
-  while (WiFi.status() == WL_CONNECTED && !has_connected_client) {
+  while (get_broadcast_condition(has_connected_client)) {
     send_udp_broadcast(udp, ip_address, broadcast_address);
     client = server.accept();
     if (client)
