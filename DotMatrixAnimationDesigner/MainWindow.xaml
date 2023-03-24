@@ -37,6 +37,14 @@
             </ObjectDataProvider.MethodParameters>
         </ObjectDataProvider>
 
+        <ObjectDataProvider x:Key="dotMatrixCommands"
+                            MethodName="GetValues"
+                            ObjectType="{x:Type s:Enum}">
+            <ObjectDataProvider.MethodParameters>
+                <x:Type TypeName="communication:DotMatrixCommand" />
+            </ObjectDataProvider.MethodParameters>
+        </ObjectDataProvider>
+
         <Storyboard x:Key="animateOpacityToOne"
                             PresentationOptions:Freeze="True">
             <DoubleAnimationUsingKeyFrames Storyboard.TargetProperty="Opacity">
@@ -451,28 +459,60 @@
                         HorizontalAlignment="Right"
                         VerticalAlignment="Bottom">
 
-                <!-- Set to clock mode button -->
-                <Button Content="Set to clock mode"
-                        HorizontalAlignment="Right"
-                        Margin="0,0,0,10"
-                        Command="{Binding Path=SendDotMatrixCommandCommand}"
-                        CommandParameter="{x:Static communication:DotMatrixCommand.SetClockMode}">
-                    <Button.Style>
-                        <Style TargetType="{x:Type Button}" BasedOn="{StaticResource ButtonPrimaryStyle}">
-                            <Setter Property="IsEnabled" Value="False" />
-                            <Setter Property="ToolTip" Value="Cannot set to clock mode - not connected"/>
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding Path=Connection.Status}" Value="{x:Static communication:ConnectionStatus.Connected}">
-                                    <Setter Property="IsEnabled" Value="True" />
-                                    <Setter Property="ToolTip" Value="Click to send set to clock mode command to display" />
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding Path=Connection.Status}" Value="{x:Static communication:ConnectionStatus.Sending}">
-                                    <Setter Property="ToolTip" Value="Sending..." />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Button.Style>
-                </Button>
+                <!-- Send command button -->
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            Margin="0,0,4,6">
+                    <TextBlock Style="{StaticResource MainTextBlockStyle}"
+                               FontSize="9"
+                               FontWeight="Bold"
+                               Text="Command to send: "
+                               Margin="0,12,0,0"/>
+
+                    <ComboBox   x:Name="commandSelector"
+                                Style="{StaticResource ComboBoxStyle}"
+                                ItemsSource="{Binding Source={StaticResource dotMatrixCommands}}"
+                                SelectedItem="{Binding Path=SelectedCommand, Mode=TwoWay}"
+                                Width="150"
+                                HorizontalContentAlignment="Right"
+                                VerticalContentAlignment="Bottom"
+                                FontSize="9"
+                                Margin="0,0,10,0"/>
+
+                    <Button Content="Send"
+                            HorizontalAlignment="Right"
+                            Margin="0,0,0,10"
+                            Height="25"
+                            Width="50"
+                            Command="{Binding Path=SendDotMatrixCommandCommand}"
+                            CommandParameter="{Binding Path=SelectedCommand}">
+
+                        <Button.Style>
+                            <Style TargetType="{x:Type Button}" BasedOn="{StaticResource ButtonPrimaryStyle}">
+                                <Setter Property="IsEnabled" Value="False" />
+                                <Setter Property="ToolTip" Value="Cannot send command - not connected"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Path=Connection.Status}" Value="{x:Static communication:ConnectionStatus.Connected}">
+                                        <Setter Property="IsEnabled" Value="True" />
+                                        <Setter Property="ToolTip">
+                                            <Setter.Value>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="Press to send the command " />
+                                                    <TextBlock Text="{Binding Path=SelectedCommand}"
+                                                                FontWeight="Bold"/>
+                                                <TextBlock Text=" to target" />
+                                            </StackPanel>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Path=Connection.Status}" Value="{x:Static communication:ConnectionStatus.Sending}">
+                                        <Setter Property="ToolTip" Value="Sending..." />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </StackPanel>
 
                 <!-- Transmit option -->
                 <StackPanel Orientation="Horizontal"

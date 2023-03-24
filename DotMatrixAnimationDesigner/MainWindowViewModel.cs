@@ -38,6 +38,7 @@ namespace DotMatrixAnimationDesigner
         private int _udpListenPort = 5578;
         private bool _isScanningNetwork = false;
         private TransmitOption _transmitOption = TransmitOption.AnimationFrames;
+        private DotMatrixCommand _selectedCommand = DotMatrixCommand.SetClockMode;
         #endregion
 
         public int Width
@@ -68,6 +69,12 @@ namespace DotMatrixAnimationDesigner
         {
             get => _transmitOption;
             set => SetProperty(ref _transmitOption, value);
+        }
+
+        public DotMatrixCommand SelectedCommand
+        {
+            get => _selectedCommand;
+            set => SetProperty(ref _selectedCommand, value);
         }
 
         public DotMatrixContainer Container { get; }
@@ -217,7 +224,7 @@ namespace DotMatrixAnimationDesigner
         {
             get
             {
-                _sendDotMatrixCommandCommand ??= new RelayCommand<DotMatrixCommand>(SendCommandToDotMatrix);
+                _sendDotMatrixCommandCommand ??= new RelayCommand(SendCommandToDotMatrix);
                 return _sendDotMatrixCommandCommand;
             }
         }
@@ -314,12 +321,12 @@ namespace DotMatrixAnimationDesigner
             Task.Run(() => Connection.Transmit(Container, TransmitOption, onlyIncludeCurrent));
         }
 
-        private void SendCommandToDotMatrix(DotMatrixCommand cmd)
+        private void SendCommandToDotMatrix()
         {
             if (Connection.Status != ConnectionStatus.Connected)
                 return;
 
-            Task.Run(() => Connection.TransmitCommand(cmd));
+            Task.Run(() => Connection.TransmitCommand(SelectedCommand));
         }
 
         private static List<IPAddress> FetchLocalIpv4Addresses()
