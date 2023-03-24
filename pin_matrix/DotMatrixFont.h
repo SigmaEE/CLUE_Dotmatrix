@@ -4,14 +4,14 @@
 
 class DotMatrixFont {
 public:
-  static uint8_t get_width_of_character(char);
-  static uint8_t get_height_of_character();
-  static uint8_t* get_character(char);
-  static uint8_t to_character_matrix_idx(uint8_t, uint8_t);
+  static uint8_t get_width_of_character(char, bool);
+  static uint8_t get_height_of_character(bool);
+  static uint8_t* get_character(char, bool);
 
 private:
   DotMatrixFont();
   const static uint8_t character_height;
+  const static uint8_t character_height_small;
   const static uint8_t CHAR_A[];
   const static uint8_t CHAR_B[];
   const static uint8_t CHAR_C[];
@@ -52,4 +52,16 @@ private:
   const static uint8_t CHAR_SPACE[];
   const static uint8_t CHAR_HYPHEN[];
   const static uint8_t CHAR_DOT[];
+
+  const static uint8_t CHAR_1_SMALL[];
+  const static uint8_t CHAR_2_SMALL[];
+  const static uint8_t CHAR_3_SMALL[];
+  const static uint8_t CHAR_4_SMALL[];
+  const static uint8_t CHAR_5_SMALL[];
+  const static uint8_t CHAR_6_SMALL[];
+  const static uint8_t CHAR_7_SMALL[];
+  const static uint8_t CHAR_8_SMALL[];
+  const static uint8_t CHAR_9_SMALL[];
+  const static uint8_t CHAR_0_SMALL[];
+  const static uint8_t CHAR_COLON_SMALL[];
 };

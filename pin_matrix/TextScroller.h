@@ -12,7 +12,7 @@ public:
 
   TextScroller(Screen*);
 
-  void init(char*, TextScroller::Direction, uint8_t, uint8_t);
+  void init(char*, TextScroller::Direction, uint8_t, uint8_t, bool);
 
   void tick();
 
@@ -30,5 +30,6 @@ private:
   int16_t m_current_start_column;
   int16_t m_current_end_column;
   int8_t m_delta;
+  bool m_use_small_font;
   bool m_is_done;
 };

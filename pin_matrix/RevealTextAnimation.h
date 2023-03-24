@@ -10,7 +10,7 @@ public:
 
   RevealTextAnimation(Screen*);
 
-  void init(char*, uint8_t, uint8_t, uint8_t, RevealTextAnimation::Mode);
+  void init(char*, uint8_t, uint8_t, uint8_t, bool, RevealTextAnimation::Mode);
 
   void tick();
 

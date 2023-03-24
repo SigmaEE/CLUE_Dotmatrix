@@ -5,12 +5,12 @@ RevealTextAnimation::RevealTextAnimation(Screen* screen)
 : m_screen(screen)
 { }
 
-void RevealTextAnimation::init(char* text_to_reveal, uint8_t character_spacing, uint8_t number_of_simultaneous_rows_or_columns, uint8_t y_origin, RevealTextAnimation::Mode mode) {
+void RevealTextAnimation::init(char* text_to_reveal, uint8_t character_spacing, uint8_t number_of_simultaneous_rows_or_columns, uint8_t y_origin, bool use_small_font, RevealTextAnimation::Mode mode) {
   m_mode = mode;
   m_number_of_simultaneous_rows_or_columns = number_of_simultaneous_rows_or_columns > 5 ? 5 : number_of_simultaneous_rows_or_columns;
 
-  uint8_t x_origin_of_text = TextUtilities::get_x_origin_of_centered_text(m_screen, text_to_reveal, character_spacing);
-  TextUtilities::write_text_at_position(m_screen, text_to_reveal, x_origin_of_text, y_origin, character_spacing, TextUtilities::TextMode::PERSISTENT_INVISIBLE);
+  uint8_t x_origin_of_text = TextUtilities::get_x_origin_of_centered_text(m_screen, text_to_reveal, character_spacing, use_small_font);
+  TextUtilities::write_text_at_position(m_screen, text_to_reveal, x_origin_of_text, y_origin, character_spacing, use_small_font, TextUtilities::TextMode::PERSISTENT_INVISIBLE);
 
   m_current_column = 0;
   m_current_row = 0;
@@ -79,8 +79,4 @@ void RevealTextAnimation::tick_falling_row_animation() {
   else {
     m_is_done = true;
   }
-}
-
-void reveal_string_falling_column_animation(char* str, uint8_t y_origin, uint8_t number_of_simultaneous_columns) {
-  
 }

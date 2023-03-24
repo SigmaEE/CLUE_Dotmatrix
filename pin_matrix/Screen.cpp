@@ -31,8 +31,12 @@ bool Screen::is_pixel_value_set(uint8_t x, uint8_t y, Screen::PixelValue value) 
 }
 
 void Screen::clear(bool also_clear_persistent_flag) {
-  for (uint8_t i = 0; i < m_screen_width; i++) {
-    for (uint8_t j = 0; j < m_screen_height; j++) {
+  clear_bounding_box({0, m_screen_width, 0, m_screen_height}, also_clear_persistent_flag);
+}
+
+void Screen::clear_bounding_box(const BoundingBox& bb, bool also_clear_persistent_flag) {
+  for (uint8_t i = bb.left; i < bb.right; i++) {
+    for (uint8_t j = bb.top; j < bb.bottom; j++) {
       if (also_clear_persistent_flag)
         unset_value_for_pixel(i, j, Screen::PixelValue::PERSISTENT);    
       unset_value_for_pixel(i, j, Screen::PixelValue::CURRENT);  

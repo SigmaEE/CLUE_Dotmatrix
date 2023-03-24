@@ -1,14 +1,24 @@
 #include "DateAndTimeStringBuilder.h"
 
-void DateAndTimeStringBuilder::build_time_string(char* buffer, uint8_t hour, uint8_t minute, bool include_colon) {
-  buffer[0] = get_tens_digit(hour);
-  buffer[1] = get_ones_digit(hour);
-  buffer[2] = ' ';
-  buffer[3] = include_colon ? ':'  : ' ';
-  buffer[4] = ' ';
-  buffer[5] = get_tens_digit(minute);
-  buffer[6] = get_ones_digit(minute);
-  buffer[7] = '\0';
+void DateAndTimeStringBuilder::build_time_string(char* buffer, uint8_t hour, uint8_t minute, uint8_t seconds, bool include_colon, bool include_seconds) {
+  uint8_t idx = 0;
+  buffer[idx++] = get_tens_digit(hour);
+  buffer[idx++] = get_ones_digit(hour);
+  if (!include_seconds)
+    buffer[idx++] = ' ';
+  buffer[idx++] = include_colon ? ':'  : ' ';
+
+  if (!include_seconds)
+    buffer[idx++] = ' ';
+  buffer[idx++] = get_tens_digit(minute);
+  buffer[idx++] = get_ones_digit(minute);
+
+  if (include_seconds) {
+    buffer[idx++] = include_colon ? ':'  : ' ';
+    buffer[idx++] = get_tens_digit(seconds);
+    buffer[idx++] = get_ones_digit(seconds);
+  }
+  buffer[idx] = '\0';
 }
 
 void DateAndTimeStringBuilder::get_day_of_week(char* buffer, bool get_long_format, uint8_t day_of_the_week) {

@@ -6,7 +6,7 @@ class DateAndTimeStringBuilder {
 public:
   static void get_day_of_week(char*, bool, uint8_t);
   static void get_name_of_month(char*, bool, uint8_t);
-  static void build_time_string(char*, uint8_t, uint8_t, bool);
+  static void build_time_string(char*, uint8_t, uint8_t, uint8_t, bool, bool);
   static void build_date_string(char*, bool, uint16_t, uint8_t, uint8_t, uint8_t);
 
 private:
