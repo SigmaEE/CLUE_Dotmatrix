@@ -1,5 +1,3 @@
-#pragma once
-
 #include "Animator.h"
 
 Animator::Animator(Screen* screen)
@@ -32,7 +30,7 @@ void Animator::init(AnimationFramesMessage* animation) {
     m_number_of_repeats = 1;
 }
 
-void Animator::tick_animation() {
+void Animator::tick() {
   if (is_done())
     return;
 
@@ -41,12 +39,13 @@ void Animator::tick_animation() {
   uint8_t value;
   int16_t x;
 
-  if (m_current_frame_start_timestamp == 0){
+  if (m_current_frame_start_timestamp == 0) {
     m_current_frame_start_timestamp = millis();
   }
   else {
     uint32_t current_timestamp = millis();
-    if (current_timestamp - m_current_frame_start_timestamp > m_animation->get_frame(m_frame_counter)->frame_header->frame_time_ms) {
+    uint16_t current_frame_time_ms = m_animation->get_frame(m_frame_counter)->frame_header->frame_time_ms;
+    if ((current_timestamp - m_current_frame_start_timestamp) > current_frame_time_ms) {
       m_frame_counter++;
       if (m_frame_counter == m_number_of_frames) {
         m_frame_counter = 0;
@@ -55,10 +54,10 @@ void Animator::tick_animation() {
       }
 
       if (m_animation_counter == m_number_of_repeats) {
-        m_animation = nullptr;
-        m_is_done = true;
+        terminate();
         return;
       }
+
       m_current_frame_start_timestamp = millis();
     }
   }
@@ -85,6 +84,16 @@ void Animator::tick_animation() {
       idx++;
     }
   }
+}
+
+void Animator:: terminate() {
+  if (m_animation == nullptr)
+    return;
+
+  delete(m_animation);
+  m_animation = nullptr;
+  m_is_done = true;
+  m_screen->clear(true);
 }
 
 bool Animator::is_done() const {

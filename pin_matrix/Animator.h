@@ -10,7 +10,9 @@ public:
 
   void init(AnimationFramesMessage*);
 
-  void tick_animation();
+  void tick();
+
+  void terminate();
 
   bool is_done() const;
 

@@ -1,11 +1,14 @@
 #include "RevealTextAnimation.h"
 #include "TextUtilities.h"
 
-RevealTextAnimation::RevealTextAnimation(Screen* screen, char* text_to_reveal, uint8_t character_spacing, uint8_t number_of_simultaneous_rows_or_columns, uint8_t y_origin, RevealTextAnimation::Mode mode) 
-: m_screen(screen),
-  m_mode(mode)
-{
+RevealTextAnimation::RevealTextAnimation(Screen* screen)
+: m_screen(screen)
+{ }
+
+void RevealTextAnimation::init(char* text_to_reveal, uint8_t character_spacing, uint8_t number_of_simultaneous_rows_or_columns, uint8_t y_origin, RevealTextAnimation::Mode mode) {
+  m_mode = mode;
   m_number_of_simultaneous_rows_or_columns = number_of_simultaneous_rows_or_columns > 5 ? 5 : number_of_simultaneous_rows_or_columns;
+
   uint8_t x_origin_of_text = TextUtilities::get_x_origin_of_centered_text(m_screen, text_to_reveal, character_spacing);
   TextUtilities::write_text_at_position(m_screen, text_to_reveal, x_origin_of_text, y_origin, character_spacing, TextUtilities::TextMode::PERSISTENT_INVISIBLE);
 
@@ -16,7 +19,7 @@ RevealTextAnimation::RevealTextAnimation(Screen* screen, char* text_to_reveal, u
   m_number_of_cleanup_steps_left = m_number_of_simultaneous_rows_or_columns;
 }
 
-void RevealTextAnimation::tick_animation() {
+void RevealTextAnimation::tick() {
   if (is_done())
     return;
 
@@ -33,6 +36,11 @@ void RevealTextAnimation::tick_animation() {
 
 bool RevealTextAnimation::is_done() const {
   return m_is_done;
+}
+
+void RevealTextAnimation::terminate() {
+  m_is_done = true;
+  m_screen->clear(true);
 }
 
 void RevealTextAnimation::tick_falling_column_animation() {

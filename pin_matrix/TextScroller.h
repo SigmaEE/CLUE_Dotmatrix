@@ -10,9 +10,13 @@ public:
     RIGHT_TO_LEFT
   };
 
-  TextScroller(Screen*, char*, TextScroller::Direction, uint8_t, uint8_t);
+  TextScroller(Screen*);
 
-  void tick_animation();
+  void init(char*, TextScroller::Direction, uint8_t, uint8_t);
+
+  void tick();
+
+  void terminate();
 
   bool is_done() const;
 
@@ -26,4 +30,5 @@ private:
   int16_t m_current_start_column;
   int16_t m_current_end_column;
   int8_t m_delta;
+  bool m_is_done;
 };

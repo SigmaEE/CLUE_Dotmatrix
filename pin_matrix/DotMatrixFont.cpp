@@ -4,6 +4,7 @@ uint8_t DotMatrixFont::get_width_of_character(char ch) {
   switch (ch) {
     case ':':
     case ' ':
+    case '.':
       return 1;
     case 'I':
     case '0':
@@ -69,6 +70,7 @@ uint8_t* DotMatrixFont::get_character(char ch) {
     case ':': return CHAR_COLON;
     case ' ': return CHAR_SPACE;
     case '-': return CHAR_HYPHEN;
+    case '.': return CHAR_DOT;
   }
 }
 
@@ -118,3 +120,4 @@ const uint8_t DotMatrixFont::CHAR_9[] = { 0x38, 0x45, 0x45, 0x3e };
 const uint8_t DotMatrixFont::CHAR_COLON[] = { 0x12 };
 const uint8_t DotMatrixFont::CHAR_SPACE[] = { 0x00 };
 const uint8_t DotMatrixFont::CHAR_HYPHEN[] = { 0x08, 0x08, 0x08, 0x08, 0x08 };
+const uint8_t DotMatrixFont::CHAR_DOT[] = { 0x01 };

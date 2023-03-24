@@ -19,7 +19,7 @@ public:
   SerialCommunicator::ReadResult read_message();
   void send_result(SerialCommunicator::ReadResult);
   Message* get_current_message() const;
-  void flush_message();
+  void flush_current_message();
 
 private:
   HardwareSerial& m_serial_interface;

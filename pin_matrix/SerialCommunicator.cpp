@@ -20,9 +20,8 @@ bool SerialCommunicator::try_read_header() {
       m_current_message = AnimationFramesMessage::create(number_of_packets);
     else if (identifier == Message::game_of_life_config_message_identifier)
       m_current_message = GameOfLifeConfigMessage::create();
+    send_result(m_current_message != nullptr ? SerialCommunicator::ReadResult::Ok : SerialCommunicator::ReadResult::UnexpectedData);
   }
-    
-  send_result(m_current_message != nullptr ? SerialCommunicator::ReadResult::Ok : SerialCommunicator::ReadResult::UnexpectedData);
   return m_current_message != nullptr;
 }
 
@@ -40,8 +39,7 @@ Message* SerialCommunicator::get_current_message() const {
   return m_current_message;
 }
 
-void SerialCommunicator::flush_message() {
-  delete(m_current_message);
+void SerialCommunicator::flush_current_message() {
   m_current_message = nullptr;
 }
 

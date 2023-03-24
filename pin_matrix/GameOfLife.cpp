@@ -9,9 +9,24 @@ void GameOfLife::init(GameOfLifeConfigMessage* config) {
 
   for (uint16_t i = 0; i < config->number_of_coordinates; i++)
     m_screen->set_value_for_pixel(config->coordinates[i].x, config->coordinates[i].y, Screen::PixelValue::CURRENT);
+
+  m_is_done = false;
+  m_time_between_ticks = config->time_between_ticks;
+  m_timestamp_at_last_tick = 0;
 }
 
 void GameOfLife::tick() {
+  if (is_done())
+    return;
+
+  if (m_timestamp_at_last_tick == 0)
+    m_timestamp_at_last_tick = millis();
+
+  uint32_t current_timestamp = millis();
+  if (current_timestamp - m_timestamp_at_last_tick < m_time_between_ticks)
+    return;
+
+  m_timestamp_at_last_tick = current_timestamp;
   bool cell_is_alive;
   uint8_t number_of_alive_neighbors, x_to_check, y_to_check;
   
@@ -41,9 +56,20 @@ void GameOfLife::tick() {
         m_screen->set_value_for_pixel(i, j, Screen::PixelValue::CURRENT); 
     }
   }
+
+  m_is_done = check_is_done();
+}
+
+void GameOfLife::terminate() {
+  m_is_done = true;
+  m_screen->clear(true);
 }
 
 bool GameOfLife::is_done() const {
+  return m_is_done;
+}
+
+bool GameOfLife::check_is_done() const {
   bool has_change, last_value, current_value;
   has_change = false;
   for (uint8_t i = 0; i < m_screen->screen_width(); i++) {

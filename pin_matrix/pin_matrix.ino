@@ -1,14 +1,15 @@
 #include <ThreeWire.h>  
 #include <RtcDS1302.h>
+
 #include "Animator.h"
-#include "DateAndTimeStringBuilder.h"
+#include "Clock.h"
+#include "DisplayMode.h"
 #include "GameOfLife.h"
-#include "Screen.h"
-#include "RevealTextAnimation.h"
-#include "TextScroller.h"
-#include "TextUtilities.h"
-#include "SerialCommunicator.h"
 #include "Messages.h"
+#include "RevealTextAnimation.h"
+#include "Screen.h"
+#include "SerialCommunicator.h"
+#include "TextScroller.h"
 
 // Arduino Mega pinout
 #define IC1_ENABLE 22
@@ -25,6 +26,10 @@
 #define IC2_ENABLE 33
 #define IC2_IC3_B0 34
 #define IC2_IC3_A2 35
+
+#define RTS_DATA_PIN 52
+#define RTS_CLOCK_PIN 51
+#define RTS_RESET_PIN 53
 
 #define MATRIX_WIDTH 28
 #define MATRIX_HEIGHT 16
@@ -54,8 +59,11 @@ const uint8_t COLUMN_MAP[] = { 1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15, 1
 
 bool clear_at_startup = true;
 TextScroller::Direction scroll_direction = TextScroller::Direction::LEFT_TO_RIGHT;
+RevealTextAnimation::Mode reveal_mode = RevealTextAnimation::Mode::Columnwise;
+uint8_t number_of_simultaneous_rows_or_columns_in_reveal = 2;
 Screen screen(MATRIX_WIDTH, MATRIX_HEIGHT);
-ThreeWire wire_setup(52, 51, 53); // DAT, CLK, RST
+
+ThreeWire wire_setup(RTS_DATA_PIN, RTS_CLOCK_PIN, RTS_RESET_PIN); // DAT, CLK, RST
 RtcDS1302<ThreeWire> rtc(wire_setup);
 
 void write_to_column_outputs(uint8_t v) {
@@ -176,122 +184,135 @@ void setup() {
     }
   }
 
-  // Setup the real-time clock
   rtc.Begin();
-  RtcDateTime program_compiled_timestamp = RtcDateTime(__DATE__, __TIME__);
-
-  if (!rtc.IsDateTimeValid()) 
-    rtc.SetDateTime(program_compiled_timestamp);
-
-  if (rtc.GetIsWriteProtected())
-      rtc.SetIsWriteProtected(false);
-
-  if (!rtc.GetIsRunning())
-      rtc.SetIsRunning(true);
-
-  RtcDateTime now = rtc.GetDateTime();
-
-  if (now < program_compiled_timestamp) 
-    rtc.SetDateTime(program_compiled_timestamp);
-  else if ((now.TotalSeconds() - program_compiled_timestamp.TotalSeconds()) > 10)
-    rtc.SetDateTime(program_compiled_timestamp);
-
-  if (!rtc.GetIsWriteProtected()) 
-    rtc.SetIsWriteProtected(true);
 
   Serial.begin(115200);
   Serial1.begin(115200);
+
   screen.clear(true);
   update_screen();
 }
 
-void scroll_text(char* text) {
-  TextScroller scroller(&screen, text, scroll_direction, CHAR_SPACING, DEFAULT_Y_ORIGIN);
-  while (!scroller.is_done()) {
-    scroller.tick_animation();
-    update_screen();
-  }
-}
-
-void reveal_text(char* text, uint8_t number_of_simultaneous_rows_or_columns, RevealTextAnimation::Mode mode) {
-  RevealTextAnimation text_revealer(&screen, text, CHAR_SPACING, number_of_simultaneous_rows_or_columns, DEFAULT_Y_ORIGIN, mode);
-  while (!text_revealer.is_done()) {
-    text_revealer.tick_animation();
-    update_screen();
-  }
+bool check_remote_input(SerialCommunicator& communicator) {
+  if (communicator.try_read_header())
+    return communicator.read_message() == SerialCommunicator::ReadResult::Ok;
+  return false;
 }
 
 void loop() {
-  static bool first = true;
-  static bool draw_colon_separator = true; 
-  static uint8_t last_minute, last_second, last_hour, x_origin;
-  static char time_string[8];
-  static char date_string[30]; // Longest possible date should be a Wednesday in September
-
-  static RtcDateTime now;
   static SerialCommunicator communicator(Serial1);
+  static Clock clock(&screen, CHAR_SPACING, DEFAULT_Y_ORIGIN);
   static Animator animator(&screen);
   static GameOfLife game_of_life(&screen);
+  static TextScroller scroller(&screen);
+  static RevealTextAnimation revealer(&screen);
+  static DisplayMode current_mode = DisplayMode::CLOCK;
+  static DisplayMode new_mode = DisplayMode::CLOCK;
+  static bool remote_input_mode = true;
 
-  now = rtc.GetDateTime();
-
-  if (!now.IsValid())
-    scroll_text("COULD NOT GET TIME - RESTART PLEASE");
-
-  if (last_hour != now.Hour() && !first) {
-    DateAndTimeStringBuilder::build_date_string(date_string, now.Year(), now.Month(), now.Day(), now.DayOfWeek());
-    scroll_text(date_string);
-    now = rtc.GetDateTime();
+  static bool first = true;
+  // Set-up clock
+  if (first) {
+    clock.init(&rtc, RtcDateTime(__DATE__, __TIME__));
+    clock.run_seconds_animation = true;
+    clock.run_reveal_text_animation = true;
+    first = false;
   }
 
-  if (first || now.Minute() != last_minute || now.Second() != last_second) {
-    screen.clear(true);
-    DateAndTimeStringBuilder::build_time_string(time_string, now.Hour(), now.Minute(), draw_colon_separator);
-    if (first) {
-      reveal_text(time_string, 2, RevealTextAnimation::Mode::Columnwise);
-      first = false;
-    }
-    else {
-      x_origin = TextUtilities::get_x_origin_of_centered_text(&screen, time_string, CHAR_SPACING);
-      TextUtilities::write_text_at_position(&screen, time_string, x_origin, DEFAULT_Y_ORIGIN, CHAR_SPACING, TextUtilities::TextMode::NOT_PERSISTENT);
-    }
+  bool new_input = false;
+  // Check if any new input is available
+  if (remote_input_mode && check_remote_input(communicator)) {
+    if (communicator.get_current_message()->get_type() == Message::Type::AnimationFrames)
+      new_mode = DisplayMode::ANIMATOR;
+    else if (communicator.get_current_message()->get_type() == Message::Type::GameOfLifeConfig)
+      new_mode = DisplayMode::GAME_OF_LIFE;
+    new_input = true;
+  }
 
+  // Check if the current mode must be terminated
+  if (new_input) {
+    switch (current_mode) {
+      case DisplayMode::REVEAL_TEXT_ANIMATION:
+        revealer.terminate();
+        break;
+
+      case DisplayMode::SCROLL_TEXT_ANIMATION:
+        scroller.terminate();
+        break;
+
+      case DisplayMode::ANIMATOR:
+        animator.terminate();
+        break;
+
+      case DisplayMode::GAME_OF_LIFE:
+        game_of_life.terminate();
+        break;
+    }
     update_screen();
-
-    last_minute = now.Minute();
-    if (now.Second() != last_second)
-      draw_colon_separator = !draw_colon_separator;
-    last_second = now.Second();
-    last_hour = now.Hour();
-  }
-
-  if (communicator.try_read_header()) {
-    SerialCommunicator::ReadResult read_result = communicator.read_message();
-    if (read_result == SerialCommunicator::ReadResult::Ok) {
-      if (communicator.get_current_message()->get_type() == Message::Type::AnimationFrames) {
-        AnimationFramesMessage* msg = static_cast<AnimationFramesMessage*>(communicator.get_current_message());
-        animator.init(msg);
-        while(!animator.is_done()) {
-          animator.tick_animation();
-          update_screen();
-        }
-      }
-      else if (communicator.get_current_message()->get_type() == Message::Type::GameOfLifeConfig) {
-        GameOfLifeConfigMessage* msg = static_cast<GameOfLifeConfigMessage*>(communicator.get_current_message());
-        game_of_life.init(msg);
-        update_screen();
-        bool is_done = false;
-        while (!is_done) {
-          delay(500);
-          game_of_life.tick();
-          is_done = game_of_life.is_done();
-          update_screen();
-        }
-      }
-      communicator.flush_message();
-    }
   }
   else {
-    delay(100);
+    // Execute the current step
+    switch (current_mode) {
+      case DisplayMode::CLOCK:
+        clock.tick();
+        if (clock.wants_mode_change()) {
+          new_mode = clock.new_mode();
+          if (new_mode == DisplayMode::REVEAL_TEXT_ANIMATION)
+            revealer.init(clock.string_to_reveal(), CHAR_SPACING, number_of_simultaneous_rows_or_columns_in_reveal, DEFAULT_Y_ORIGIN, reveal_mode);
+          else if (new_mode == DisplayMode::SCROLL_TEXT_ANIMATION)
+            scroller.init(clock.string_to_scroll(), scroll_direction, CHAR_SPACING, DEFAULT_Y_ORIGIN);
+        }
+        break;
+
+      case DisplayMode::REVEAL_TEXT_ANIMATION:
+        revealer.tick();
+        if (revealer.is_done())
+          new_mode = DisplayMode::CLOCK;
+        break;
+
+      case DisplayMode::SCROLL_TEXT_ANIMATION:
+        scroller.tick();
+        if (scroller.is_done()) {
+          clock.run_reveal_text_animation = true;
+          new_mode = DisplayMode::CLOCK;
+        }
+        break;
+
+      case DisplayMode::ANIMATOR:
+        animator.tick();
+        if (animator.is_done()) {
+          clock.run_reveal_text_animation = true;
+          new_mode = DisplayMode::CLOCK;
+        }
+        break;
+
+      case DisplayMode::GAME_OF_LIFE:
+        game_of_life.tick();
+        if (game_of_life.is_done()) {
+          clock.run_reveal_text_animation = true;
+          new_mode = DisplayMode::CLOCK;
+        }
+        break;
+    }
+    update_screen();
+  }
+
+  // Set-up up the next iteration if a mode change is pending
+  if (new_input || (new_mode != current_mode)) {
+    switch (new_mode) {
+      case DisplayMode::ANIMATOR:
+        animator.init(static_cast<AnimationFramesMessage*>(communicator.get_current_message()));
+        communicator.flush_current_message();
+        break;
+
+      case DisplayMode::GAME_OF_LIFE:
+        GameOfLifeConfigMessage* game_of_life_config = static_cast<GameOfLifeConfigMessage*>(communicator.get_current_message());
+        game_of_life.init(game_of_life_config);
+        communicator.flush_current_message();
+        delete(game_of_life_config);
+        break;
+    }
+    current_mode = new_mode;
+    update_screen();
   }
 }

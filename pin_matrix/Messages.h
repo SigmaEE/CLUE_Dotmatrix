@@ -79,7 +79,6 @@ public:
 
     if (header->bytes_per_frame > (payload_length - AnimationFrameHeader::header_length))
       return nullptr;
-
     return new AnimationFrame(header, payload, payload_length);
   }
 
@@ -176,6 +175,7 @@ class GameOfLifeConfigMessage final : public Message {
 public:
   Coordinate* coordinates;
   uint16_t number_of_coordinates;
+  uint16_t time_between_ticks;
 
   Message::Type get_type() const override {
     return Message::Type::GameOfLifeConfig;
@@ -188,9 +188,9 @@ public:
   SerialCommunicator::ReadResult read_message(HardwareSerial& serial_interface, SerialCommunicator& communicator) override {
     uint16_t crc, payload_length, calculated_crc;
     while (true) {
-      if (!Message::try_read_crc_and_payload_length(serial_interface, &crc, &payload_length))
+      if (!Message::try_read_crc_and_payload_length(serial_interface, &crc, &payload_length)) {
         return SerialCommunicator::ReadResult::UnexpectedData;
-
+      }
       uint8_t data_buffer[payload_length];
       if (serial_interface.readBytes(data_buffer, payload_length) != payload_length)
         return SerialCommunicator::ReadResult::UnexpectedData;
@@ -202,10 +202,11 @@ public:
         continue;
       }
 
-      number_of_coordinates = payload_length / 2;
+      time_between_ticks = data_buffer[1] << 8 | data_buffer[0];
+      number_of_coordinates = (payload_length - 2) / 2;
       coordinates = new Coordinate[number_of_coordinates];
       for (uint16_t i = 0; i < number_of_coordinates; i++)
-        coordinates[i] = { data_buffer[i * 2], data_buffer[(i * 2) + 1] };
+        coordinates[i] = { data_buffer[2 + (i * 2)], data_buffer[2 + ((i * 2) + 1)] };
 
       communicator.send_result(SerialCommunicator::ReadResult::Ok);
       break;

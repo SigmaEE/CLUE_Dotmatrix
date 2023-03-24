@@ -8,9 +8,13 @@ public:
     Columnwise
   };
 
-  RevealTextAnimation(Screen*, char*, uint8_t, uint8_t, uint8_t, RevealTextAnimation::Mode);
+  RevealTextAnimation(Screen*);
 
-  void tick_animation();
+  void init(char*, uint8_t, uint8_t, uint8_t, RevealTextAnimation::Mode);
+
+  void tick();
+
+  void terminate();
 
   bool is_done() const;
 
