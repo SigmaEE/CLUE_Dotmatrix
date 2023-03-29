@@ -18,7 +18,7 @@ public:
   
   void init(RtcDS1302<ThreeWire>*, RtcDateTime);
 
-  void tick();
+  void tick(bool);
 
   bool wants_mode_change() const;
 
@@ -27,6 +27,8 @@ public:
   char* string_to_scroll() const;
 
   char* string_to_reveal() const;
+
+  char* get_current_date(bool) const;
 
 private:
   Screen* m_screen;
@@ -42,6 +44,8 @@ private:
   uint8_t m_last_second;
   uint8_t m_last_hour;
   uint8_t m_x_origin;
+  bool m_last_iteration_used_small_font;
 
+  uint32_t m_time_since_last_check;
   BoundingBox m_bounding_box;
 };
