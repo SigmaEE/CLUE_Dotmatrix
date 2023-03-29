@@ -106,6 +106,19 @@ void update_screen() {
 
 #if DEBUG
 void dump_screen_on_serial_port() {
+  bool has_change = false;
+  for (uint8_t i = 0; i < screen.screen_width(); i++) {
+    for (uint8_t j = 0; j <  screen.screen_height(); j++) {
+      if (screen.is_pixel_value_set(i, j, Screen::PixelValue::CURRENT) != screen.is_pixel_value_set(i, j, Screen::PixelValue::PREVIOUS)) {
+        has_change = true;
+        break;
+      }
+    }
+  }
+
+  if (!has_change)
+    return;
+
   Serial.print("\n---------------------\n   ");
   for (uint8_t i = 0; i < screen.screen_width(); i++) {
     Serial.print(i + 1);
@@ -205,7 +218,6 @@ void setup() {
   }
 
   rtc.Begin();
-
   Serial.begin(115200);
   Serial1.begin(115200);
 
