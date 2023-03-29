@@ -14,11 +14,9 @@ namespace DotMatrixAnimationDesigner.Communication
     public enum DotMatrixCommand
     {
         SetClockMode = 0x01,
-        SetOneLineMode = 0x02,
-        SetTwoLineMode = 0x03,
-        SetSecondAnimationActive = 0x04,
-        SetSecondAnimationInactive = 0x05,
-        ScrollDate = 0x06
+        SetSecondAnimationActive = 0x02,
+        SetSecondAnimationInactive = 0x03,
+        ScrollDate = 0x04
     }
 
     internal abstract class DotMatrixMessage
