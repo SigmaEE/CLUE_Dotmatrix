@@ -239,8 +239,6 @@ class DotMatrixCommandMessage final : public Message {
 public:
   enum class Command {
     SetClockMode,
-    SetOneLineMode,
-    SetTwoLineMode,
     SetSecondAnimationActive,
     SetSecondAnimationInactive,
     ScrollDate
@@ -275,22 +273,14 @@ public:
           valid_command = true;
           break;
         case 0x02:
-          cmd = DotMatrixCommandMessage::Command::SetOneLineMode;
-          valid_command = true;
-          break;
-        case 0x03:
-          cmd = DotMatrixCommandMessage::Command::SetTwoLineMode;
-          valid_command = true;
-          break;
-        case 0x04:
           cmd = DotMatrixCommandMessage::Command::SetSecondAnimationActive;
           valid_command = true;
           break;
-        case 0x05:
+        case 0x03:
           cmd = DotMatrixCommandMessage::Command::SetSecondAnimationInactive;
           valid_command = true;
           break;
-        case 0x06:
+        case 0x04:
           cmd = DotMatrixCommandMessage::Command::ScrollDate;
           valid_command = true;
           break;

@@ -302,12 +302,6 @@ void loop() {
           case DotMatrixCommandMessage::Command::SetClockMode:
             new_mode = DisplayMode::CLOCK;
             break;
-          case DotMatrixCommandMessage::Command::SetOneLineMode:
-            two_line_layout = false;
-            break;
-          case DotMatrixCommandMessage::Command::SetTwoLineMode:
-            two_line_layout = true;
-            break;
           case DotMatrixCommandMessage::Command::SetSecondAnimationActive:
             run_seconds_animation = true;
             break;
