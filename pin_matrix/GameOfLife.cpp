@@ -4,6 +4,16 @@ GameOfLife::GameOfLife(Screen* screen)
   : m_screen(screen)
   { }
 
+
+void GameOfLife::init() {
+  m_is_done = false;
+  m_time_between_ticks = GameOfLife::DefaultFrameTimeMs;
+  m_timestamp_at_last_tick = 0;
+  m_current_config = 0;
+
+  set_config();
+}
+
 void GameOfLife::init(GameOfLifeConfigMessage* config) {
   m_screen->clear(true);
 
@@ -13,6 +23,13 @@ void GameOfLife::init(GameOfLifeConfigMessage* config) {
   m_is_done = false;
   m_time_between_ticks = config->time_between_ticks;
   m_timestamp_at_last_tick = 0;
+}
+
+void GameOfLife::increment_config() {
+  m_current_config++;
+  if (m_current_config >= GameOfLife::NumberOfConfigs)
+    m_current_config = 0;
+  set_config();
 }
 
 void GameOfLife::tick() {
@@ -85,3 +102,38 @@ bool GameOfLife::check_is_done() const {
 
   return !has_change;
 }
+
+void GameOfLife::set_config() {
+  m_screen->clear(true);
+  switch (m_current_config) {
+    case 0:
+      //Glider
+      m_screen->set_value_for_pixel(5, 8, Screen::PixelValue::CURRENT);
+      m_screen->set_value_for_pixel(6, 6, Screen::PixelValue::CURRENT);
+      m_screen->set_value_for_pixel(6, 8, Screen::PixelValue::CURRENT);
+      m_screen->set_value_for_pixel(7, 7, Screen::PixelValue::CURRENT);
+      m_screen->set_value_for_pixel(7, 8, Screen::PixelValue::CURRENT);
+      break;
+
+    case 1:
+      // Pentadecathlon
+      m_screen->set_value_for_pixel(9, 8, Screen::PixelValue::CURRENT);
+      m_screen->set_value_for_pixel(10, 8, Screen::PixelValue::CURRENT);
+      m_screen->set_value_for_pixel(11, 7, Screen::PixelValue::CURRENT);
+      m_screen->set_value_for_pixel(11, 9, Screen::PixelValue::CURRENT);
+      m_screen->set_value_for_pixel(12, 8, Screen::PixelValue::CURRENT);
+      m_screen->set_value_for_pixel(13, 8, Screen::PixelValue::CURRENT);
+      m_screen->set_value_for_pixel(14, 8, Screen::PixelValue::CURRENT);
+      m_screen->set_value_for_pixel(15, 8, Screen::PixelValue::CURRENT);
+      m_screen->set_value_for_pixel(16, 7, Screen::PixelValue::CURRENT);
+      m_screen->set_value_for_pixel(16, 9, Screen::PixelValue::CURRENT);
+      m_screen->set_value_for_pixel(17, 8, Screen::PixelValue::CURRENT);
+      m_screen->set_value_for_pixel(18, 8, Screen::PixelValue::CURRENT);
+      break;
+
+    default:
+      break;
+  }
+}
+const uint16_t GameOfLife::DefaultFrameTimeMs = 500;
+const uint8_t GameOfLife::NumberOfConfigs = 2;

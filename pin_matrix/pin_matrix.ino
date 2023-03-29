@@ -32,6 +32,12 @@
 #define RTS_CLOCK_PIN 51
 #define RTS_RESET_PIN 53
 
+#define BUTTON_WHITE 42
+#define BUTTON_BLUE 41
+#define BUTTON_GREEN 39
+#define BUTTON_RED 38
+#define TWO_POS_SWITCH 40
+
 #define MATRIX_WIDTH 28
 #define MATRIX_HEIGHT 16
 #define CHAR_SPACING 1
@@ -56,7 +62,7 @@
 
 #define MAP_ROW_IDX_TO_OUTPUT(x) (x + 1 + (x / 7))
 const uint8_t COLUMN_MAP[] = { 1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 22, 23, 25, 26, 27, 28, 29, 30, 31 };
-
+const uint32_t BUTTON_DEBOUNCE_TIME_MS = 300;
 bool clear_at_startup = true;
 TextScroller::Direction scroll_direction = TextScroller::Direction::LEFT_TO_RIGHT;
 RevealTextAnimation::Mode reveal_mode = RevealTextAnimation::Mode::Columnwise;
@@ -65,6 +71,14 @@ Screen screen(MATRIX_WIDTH, MATRIX_HEIGHT);
 
 ThreeWire wire_setup(RTS_DATA_PIN, RTS_CLOCK_PIN, RTS_RESET_PIN); // DAT, CLK, RST
 RtcDS1302<ThreeWire> rtc(wire_setup);
+
+enum class LocalButton {
+  ScrollDate,
+  ToggleGameOfLifeConfig,
+  StartGameOfLife,
+  Stop,
+  TwoLineSwitch
+};
 
 void write_to_column_outputs(uint8_t v) {
   digitalWrite(IC1_A0, bitRead(v, 0) == 0 ? LOW : HIGH);
@@ -169,6 +183,12 @@ void setup() {
   pinMode(IC2_IC3_A1, OUTPUT);
   pinMode(IC2_IC3_A2, OUTPUT);
 
+  pinMode(BUTTON_WHITE, INPUT_PULLUP);
+  pinMode(BUTTON_BLUE, INPUT_PULLUP);
+  pinMode(BUTTON_GREEN, INPUT_PULLUP);
+  pinMode(BUTTON_RED, INPUT_PULLUP);
+  pinMode(TWO_POS_SWITCH, INPUT_PULLUP);
+
   // Ensure all enable pins are initially set low
   digitalWrite(IC1_ENABLE, LOW);
   digitalWrite(IC2_ENABLE, LOW);
@@ -193,6 +213,44 @@ void setup() {
   update_screen();
 }
 
+bool check_and_update_button_state(uint8_t button, bool* last_button_state, uint32_t* button_last_pressed) {
+  bool is_pressed = digitalRead(button) == 0;
+  uint32_t t = millis();
+  // Pressed
+  if (is_pressed && !*last_button_state) {
+    // Handle bouncing
+    if (button_last_pressed > 0 && ((t - *button_last_pressed) < BUTTON_DEBOUNCE_TIME_MS))
+      return false;
+    *last_button_state = true;
+    *button_last_pressed = t;
+    return true;
+  }
+  // Released
+  else if (!is_pressed && *last_button_state) {
+    *last_button_state = false;
+  }
+  return false;
+}
+
+bool button_is_active(LocalButton input) {
+  static bool button_pressed_state[] { false, false, false, false };
+  static uint32_t button_last_pressed[] {0, 0, 0, 0 };
+  switch (input) {
+    case LocalButton::ScrollDate:
+      return check_and_update_button_state(BUTTON_WHITE, &button_pressed_state[0], &button_last_pressed[0]);
+    case LocalButton::ToggleGameOfLifeConfig:
+      return check_and_update_button_state(BUTTON_BLUE, &button_pressed_state[1], &button_last_pressed[1]);
+    case LocalButton::StartGameOfLife:
+      return check_and_update_button_state(BUTTON_GREEN, &button_pressed_state[2], &button_last_pressed[2]);
+    case LocalButton::Stop:
+      return check_and_update_button_state(BUTTON_RED, &button_pressed_state[3], &button_last_pressed[3]);
+    case LocalButton::TwoLineSwitch:
+      return digitalRead(TWO_POS_SWITCH) == 0;
+     default:
+      return false;
+  }
+}
+
 bool check_remote_input(SerialCommunicator& communicator) {
   if (communicator.try_read_header())
     return communicator.read_message() == SerialCommunicator::ReadResult::Ok;
@@ -200,9 +258,8 @@ bool check_remote_input(SerialCommunicator& communicator) {
 }
 
 void loop() {
-  static bool remote_input_mode = true;
   static bool two_line_layout = true;
-  static bool run_seconds_animation = true;
+  static bool run_seconds_animation = false;
   static uint8_t y_origin_line_1;
   static uint8_t y_origin_line_2 = 8;
 
@@ -214,6 +271,10 @@ void loop() {
   static RevealTextAnimation revealer(&screen);
   static DisplayMode current_mode = DisplayMode::CLOCK;
   static DisplayMode new_mode = DisplayMode::CLOCK;
+  static bool new_input;
+  static bool new_remote_input;
+  static bool increment_game_of_life_config;
+
   static bool first = true;
 
   // Set-up clock
@@ -223,9 +284,11 @@ void loop() {
     first = false;
   }
 
-  bool new_input = false;
+  new_input = false;
+  new_remote_input = false;
+  increment_game_of_life_config = false;
   // Check if any new input is available
-  if (remote_input_mode && check_remote_input(communicator)) {
+  if (check_remote_input(communicator)) {
     Message::Type type = communicator.get_current_message()->get_type();
     switch (type) {
       case Message::Type::AnimationFrames:
@@ -252,18 +315,51 @@ void loop() {
             run_seconds_animation = false;
             break;
           case DotMatrixCommandMessage::Command::ScrollDate:
-            // TODO
-            //if (two_line_layout)
-            //  new_mode = DisplayMode::SCROLL_TEXT_TWO_LINE;
-            //scroller.init(clock.string_to_scroll(), scroll_direction, CHAR_SPACING, two_line_layout ? y_origin_line_2 : y_origin_line_1, false);
+            if (two_line_layout)
+              new_mode = DisplayMode::SCROLL_TEXT_TWO_LINE;
+            else
+              new_mode = DisplayMode::SCROLL_TEXT_ANIMATION;
+            scroller.init(clock.get_current_date(false), scroll_direction, CHAR_SPACING, two_line_layout ? y_origin_line_2 : y_origin_line_1, false);
             break;
         }
         communicator.flush_current_message();
         break;
     }
+    new_remote_input = true;
     new_input = true;
   }
+  else {
+    if (button_is_active(LocalButton::ScrollDate)) {
+      bool is_already_scrolling = current_mode == DisplayMode::SCROLL_TEXT_ANIMATION || current_mode == DisplayMode::SCROLL_TEXT_TWO_LINE;
+      if (!is_already_scrolling) {
+        new_mode = two_line_layout ? DisplayMode::SCROLL_TEXT_TWO_LINE : DisplayMode::SCROLL_TEXT_ANIMATION;
+        new_input = true;
+        scroller.init(clock.get_current_date(false), scroll_direction, CHAR_SPACING, two_line_layout ? y_origin_line_2 : y_origin_line_1, false);
+      }
+    }
 
+    if (button_is_active(LocalButton::ToggleGameOfLifeConfig)) {
+      increment_game_of_life_config = current_mode == DisplayMode::GAME_OF_LIFE_CONFIG;
+      if (current_mode != DisplayMode::GAME_OF_LIFE_CONFIG) {
+        new_mode = DisplayMode::GAME_OF_LIFE_CONFIG;
+        new_input = true;
+      }
+    }
+
+    if (button_is_active(LocalButton::StartGameOfLife)) {
+      if (current_mode == DisplayMode::GAME_OF_LIFE_CONFIG) {
+        new_mode = DisplayMode::GAME_OF_LIFE;
+        new_input == true;
+      }
+    }
+
+    if (button_is_active(LocalButton::Stop)) {
+      new_mode = DisplayMode::CLOCK;
+      new_input = true;
+    }
+  }
+
+  two_line_layout = button_is_active(LocalButton::TwoLineSwitch);
   y_origin_line_1 = two_line_layout ? 1 : 4;
   clock.run_seconds_animation = run_seconds_animation;
   clock.y_origin = y_origin_line_1;
@@ -277,6 +373,7 @@ void loop() {
         break;
 
       case DisplayMode::SCROLL_TEXT_ANIMATION:
+      case DisplayMode::SCROLL_TEXT_TWO_LINE:
         scroller.terminate();
         break;
 
@@ -285,19 +382,24 @@ void loop() {
         break;
 
       case DisplayMode::GAME_OF_LIFE:
+      case DisplayMode::GAME_OF_LIFE_CONFIG:
         game_of_life.terminate();
         break;
+      case DisplayMode::CLOCK:
+        if (!two_line_layout)
+          screen.clear(true);
     }
   }
   else {
     // Execute the current step
     switch (current_mode) {
       case DisplayMode::CLOCK:
-        clock.tick();
+        clock.tick(false);
         if (clock.wants_mode_change()) {
           new_mode = clock.new_mode();
-          if (new_mode == DisplayMode::REVEAL_TEXT_ANIMATION)
+          if (new_mode == DisplayMode::REVEAL_TEXT_ANIMATION) {
             revealer.init(clock.string_to_reveal(), CHAR_SPACING, number_of_simultaneous_rows_or_columns_in_reveal, y_origin_line_1, two_line_layout, reveal_mode);
+          }
           else if (new_mode == DisplayMode::SCROLL_TEXT_ANIMATION) {
             if (two_line_layout)
               new_mode = DisplayMode::SCROLL_TEXT_TWO_LINE;
@@ -335,10 +437,13 @@ void loop() {
           new_mode = DisplayMode::CLOCK;
         }
         break;
-
+      case DisplayMode::GAME_OF_LIFE_CONFIG:
+        if (increment_game_of_life_config)
+          game_of_life.increment_config();
+        break;
       case DisplayMode::SCROLL_TEXT_TWO_LINE:
         scroller.tick();
-        clock.tick();
+        clock.tick(false);
         if (scroller.is_done())
           new_mode = DisplayMode::CLOCK;
     }
@@ -348,19 +453,24 @@ void loop() {
 
   // Set-up up the next iteration if a mode change is pending
   if (new_input || (new_mode != current_mode)) {
-    switch (new_mode) {
-      case DisplayMode::ANIMATOR:
-        animator.init(static_cast<AnimationFramesMessage*>(communicator.get_current_message()));
-        communicator.flush_current_message();
-        break;
-
-      case DisplayMode::GAME_OF_LIFE:
-        GameOfLifeConfigMessage* game_of_life_config = static_cast<GameOfLifeConfigMessage*>(communicator.get_current_message());
-        game_of_life.init(game_of_life_config);
-        communicator.flush_current_message();
-        delete(game_of_life_config);
-        break;
+    if (new_mode == DisplayMode::ANIMATOR) {
+      animator.init(static_cast<AnimationFramesMessage*>(communicator.get_current_message()));
+      communicator.flush_current_message();
     }
+    // We could have gotten a remote GameOfLife config here or someone could have pressed the start button
+    else if (new_mode == DisplayMode::GAME_OF_LIFE && new_remote_input) {
+      GameOfLifeConfigMessage* game_of_life_config = static_cast<GameOfLifeConfigMessage*>(communicator.get_current_message());
+      game_of_life.init(game_of_life_config);
+      communicator.flush_current_message();
+      delete(game_of_life_config);
+    }
+    else if (new_mode == DisplayMode::GAME_OF_LIFE_CONFIG) {
+      game_of_life.init();
+    }
+    else if (new_mode == DisplayMode::CLOCK) {
+      clock.tick(true);
+    }
+
     current_mode = new_mode;
     update_screen();
   }
